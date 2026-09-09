@@ -27,7 +27,7 @@
             height: 100vh;
             object-fit: contain;
             background: #0a0a0a;
-            cursor: none; /* 隐藏默认光标，更沉浸 */
+            cursor: none;
             image-rendering: crisp-edges;
         }
     </style>
@@ -36,7 +36,7 @@
     <canvas id="gameCanvas"></canvas>
     <script>
         (function() {
-            // ---------- 固定逻辑分辨率 ----------
+            // ---------- 固定设计分辨率 ----------
             const DESIGN_W = 904;
             const DESIGN_H = 572;
 
@@ -58,19 +58,19 @@
             window.addEventListener('resize', resizeCanvas);
             resizeCanvas();
 
-            // ---------- 硬件映射：左侧两个黑色摄像头（固定危险区） ----------
+            // ---------- 硬件映射：左侧两个黑色摄像头（黑洞） ----------
             const BLACK_HOLES = [
                 { x: 140, y: 190, r: 85 },
                 { x: 140, y: 400, r: 85 }
             ];
 
-            // ---------- 玩家：白色引力洞 ----------
+            // ---------- 玩家：白色引力核心 ----------
             const PLAYER = {
                 x: DESIGN_W / 2,
                 y: DESIGN_H / 2,
-                r: 45,          // 核心半径
-                grabRadius: 200, // 引力作用半径
-                maxSpeed: 4.5    // 泡泡被吸引的最大速度增量
+                r: 40,
+                grabRadius: 200,
+                maxSpeed: 4.2
             };
 
             // ---------- 游戏状态 ----------
@@ -78,143 +78,227 @@
             let particles = [];
             let score = 0;
             let lost = 0;
+            let combo = 0;
+            let maxCombo = 0;
             let spawnTimer = 0;
-            const SPAWN_INTERVAL = 22; // 帧数间隔
+            const SPAWN_INTERVAL = 20;
+            let frameCount = 0;
+            let shakeX = 0,
+                shakeY = 0;
+            let shakeIntensity = 0;
 
-            // ---------- 辅助函数 ----------
-            function random(min, max) {
-                return Math.random() * (max - min) + min;
-            }
+            // ---------- 辅助 ----------
+            function random(min, max) { return Math.random() * (max - min) + min; }
 
-            // 检测点是否在黑色摄像头内（用于玩家不能进入，但这里我们不限制玩家移动，只让泡泡危险）
             function isInsideBlackHole(x, y) {
                 for (let h of BLACK_HOLES) {
-                    const dx = x - h.x;
-                    const dy = y - h.y;
-                    if (dx * dx + dy * dy < h.r * h.r) {
-                        return true;
-                    }
+                    const dx = x - h.x,
+                        dy = y - h.y;
+                    if (dx * dx + dy * dy < h.r * h.r) return true;
                 }
                 return false;
             }
 
-            // 检测圆与黑洞碰撞（用于泡泡）
             function isBubbleInHole(bx, by, br) {
                 for (let h of BLACK_HOLES) {
-                    const dx = bx - h.x;
-                    const dy = by - h.y;
+                    const dx = bx - h.x,
+                        dy = by - h.y;
                     const dist = Math.sqrt(dx * dx + dy * dy);
-                    if (dist < h.r + br) {
-                        return true;
-                    }
+                    if (dist < h.r + br) return true;
                 }
                 return false;
             }
 
-            // ---------- 泡泡生成 ----------
+            // ---------- 生成泡泡 ----------
             function spawnBubble() {
-                const radius = random(14, 30);
-                const x = DESIGN_W + radius + random(10, 50);
-                const y = random(radius, DESIGN_H - radius);
-                // 初始速度：向左为主，少量垂直
-                const vx = -random(0.8, 2.0);
-                const vy = random(-0.4, 0.4);
+                const radius = random(12, 28);
+                const x = DESIGN_W + radius + random(10, 60);
+                const y = random(radius + 10, DESIGN_H - radius - 10);
+                const vx = -random(0.6, 1.8);
+                const vy = random(-0.5, 0.5);
                 const hue = random(0, 360);
-                const color = `hsl(${hue}, 85%, 65%)`;
-                const glowColor = `hsla(${hue}, 100%, 70%, 0.5)`;
+                const sat = random(70, 100);
+                const lig = random(55, 80);
+                const color = `hsl(${hue}, ${sat}%, ${lig}%)`;
+                const glowColor = `hsla(${hue}, 100%, 75%, 0.4)`;
+                // 随机类型：0=普通，1=金色（双倍），2=暗色（扣分）
+                let type = 0;
+                const roll = Math.random();
+                if (roll < 0.08) type = 1;
+                else if (roll < 0.14) type = 2;
                 bubbles.push({
-                    x, y, radius,
-                    vx, vy,
-                    color, glowColor,
-                    phase: random(0, Math.PI * 2)
+                    x,
+                    y,
+                    radius,
+                    vx,
+                    vy,
+                    color,
+                    glowColor,
+                    type,
+                    phase: random(0, Math.PI * 2),
+                    trail: []
                 });
             }
 
             // ---------- 粒子特效 ----------
-            // 接住特效（彩色）
             function catchEffect(bubble) {
-                const count = Math.floor(bubble.radius * 1.2);
+                const count = Math.floor(bubble.radius * 1.5) + 8;
+                const hue = parseInt(bubble.color.match(/\d+/)[0]) || 200;
+                const isGold = bubble.type === 1;
+                const isDark = bubble.type === 2;
+
                 for (let i = 0; i < count; i++) {
                     const angle = random(0, Math.PI * 2);
-                    const speed = random(1, 5);
-                    const size = random(2, 6);
-                    const hue = parseInt(bubble.color.match(/\d+/)[0]);
+                    const speed = random(1.5, 6.5);
+                    const size = random(2, 7);
+                    let h = hue + random(-30, 30);
+                    let s = 90,
+                        l = 70;
+                    if (isGold) { h = 45 + random(-10, 10);
+                        s = 100;
+                        l = 75; } else if (isDark) { h = 0;
+                        s = 0;
+                        l = random(20, 50); }
                     particles.push({
                         x: bubble.x,
                         y: bubble.y,
                         vx: Math.cos(angle) * speed,
-                        vy: Math.sin(angle) * speed - 0.5,
+                        vy: Math.sin(angle) * speed - 0.8,
                         radius: size,
                         life: 1.0,
-                        decay: random(0.015, 0.035),
-                        color: `hsl(${hue + random(-20, 20)}, 90%, 70%)`
+                        decay: random(0.012, 0.028),
+                        color: `hsl(${h}, ${s}%, ${l}%)`,
+                        gravity: 0.04
                     });
                 }
-                score++;
+                // 额外光晕
+                for (let i = 0; i < 5; i++) {
+                    const angle = random(0, Math.PI * 2);
+                    const dist = random(5, 20);
+                    particles.push({
+                        x: bubble.x + Math.cos(angle) * dist,
+                        y: bubble.y + Math.sin(angle) * dist,
+                        vx: Math.cos(angle) * random(0.2, 0.8),
+                        vy: Math.sin(angle) * random(0.2, 0.8) - 0.3,
+                        radius: random(4, 12),
+                        life: 1.0,
+                        decay: random(0.02, 0.04),
+                        color: isGold ? 'rgba(255,215,0,0.6)' : `hsla(${hue + random(-20,20)}, 100%, 80%, 0.5)`,
+                        gravity: 0.01,
+                        glow: true
+                    });
+                }
+
+                // 计分
+                let points = 1;
+                if (isGold) points = 3;
+                else if (isDark) points = -2;
+                score += points;
+
+                // 连击
+                if (points > 0) {
+                    combo++;
+                    if (combo > maxCombo) maxCombo = combo;
+                    if (combo > 5) {
+                        // 连击特效
+                        for (let i = 0; i < 10; i++) {
+                            const angle = random(0, Math.PI * 2);
+                            const speed = random(2, 5);
+                            particles.push({
+                                x: bubble.x + Math.cos(angle) * 20,
+                                y: bubble.y + Math.sin(angle) * 20,
+                                vx: Math.cos(angle) * speed,
+                                vy: Math.sin(angle) * speed - 1,
+                                radius: random(3, 8),
+                                life: 1.0,
+                                decay: random(0.015, 0.03),
+                                color: `hsl(${random(0,360)}, 100%, 75%)`,
+                                gravity: 0.02
+                            });
+                        }
+                    }
+                } else {
+                    combo = 0;
+                }
+
+                // 屏幕震动
+                if (isGold) {
+                    shakeIntensity = 3;
+                } else if (isDark) {
+                    shakeIntensity = 5;
+                } else {
+                    shakeIntensity = Math.min(2, 1 + combo * 0.1);
+                }
             }
 
-            // 被黑洞吞噬特效（暗色）
             function swallowEffect(x, y) {
-                for (let i = 0; i < 15; i++) {
+                for (let i = 0; i < 18; i++) {
                     const angle = random(0, Math.PI * 2);
-                    const dist = random(5, 25);
+                    const dist = random(3, 28);
                     particles.push({
                         x: x + Math.cos(angle) * dist,
                         y: y + Math.sin(angle) * dist,
-                        vx: -Math.cos(angle) * random(0.5, 1.5),
-                        vy: -Math.sin(angle) * random(0.5, 1.5),
-                        radius: random(2, 5),
+                        vx: -Math.cos(angle) * random(0.3, 1.8),
+                        vy: -Math.sin(angle) * random(0.3, 1.8),
+                        radius: random(2, 6),
                         life: 1.0,
-                        decay: random(0.02, 0.04),
-                        color: `hsl(0, 0%, ${random(10, 40)}%)`
+                        decay: random(0.02, 0.045),
+                        color: `hsl(0, 0%, ${random(5, 35)}%)`,
+                        gravity: 0.02
                     });
                 }
                 lost++;
+                combo = 0;
+                shakeIntensity = 4;
             }
 
-            // ---------- 更新逻辑 ----------
+            // ---------- 更新 ----------
             function update() {
-                // 1. 生成泡泡
+                frameCount++;
+
+                // 生成泡泡
                 spawnTimer++;
                 if (spawnTimer >= SPAWN_INTERVAL) {
                     spawnTimer = 0;
-                    if (bubbles.length < 50) {
+                    if (bubbles.length < 55) {
                         spawnBubble();
-                        if (Math.random() < 0.25) spawnBubble();
+                        if (Math.random() < 0.2) spawnBubble();
                     }
                 }
 
-                // 2. 更新粒子
+                // 更新粒子
                 for (let i = particles.length - 1; i >= 0; i--) {
                     const p = particles[i];
                     p.x += p.vx;
                     p.y += p.vy;
-                    p.vy += 0.06;
+                    p.vy += p.gravity || 0.06;
                     p.life -= p.decay;
                     p.radius *= 0.99;
-                    if (p.life <= 0 || p.radius < 0.3) {
+                    if (p.life <= 0 || p.radius < 0.2) {
                         particles.splice(i, 1);
                     }
                 }
 
-                // 3. 更新泡泡
+                // 限制粒子数量
+                if (particles.length > 500) {
+                    particles.splice(0, particles.length - 500);
+                }
+
+                // 更新泡泡
                 for (let i = bubbles.length - 1; i >= 0; i--) {
                     const b = bubbles[i];
 
-                    // ---- 引力逻辑 ----
+                    // 引力
                     const dx = PLAYER.x - b.x;
                     const dy = PLAYER.y - b.y;
                     const distToPlayer = Math.sqrt(dx * dx + dy * dy);
 
-                    if (distToPlayer < PLAYER.grabRadius && distToPlayer > 0.1) {
-                        // 施加指向玩家的加速度
-                        const force = (1 - distToPlayer / PLAYER.grabRadius) * 0.25; // 越近越强
+                    if (distToPlayer < PLAYER.grabRadius && distToPlayer > 0.5) {
+                        const force = (1 - distToPlayer / PLAYER.grabRadius) * 0.28;
                         const accelX = (dx / distToPlayer) * force;
                         const accelY = (dy / distToPlayer) * force;
                         b.vx += accelX;
                         b.vy += accelY;
-
-                        // 限制最大速度（防止过于剧烈）
                         const speed = Math.sqrt(b.vx * b.vx + b.vy * b.vy);
                         if (speed > PLAYER.maxSpeed) {
                             b.vx = (b.vx / speed) * PLAYER.maxSpeed;
@@ -222,119 +306,157 @@
                         }
                     }
 
-                    // 额外：轻微阻尼，防止无限加速
-                    b.vx *= 0.998;
-                    b.vy *= 0.998;
+                    b.vx *= 0.997;
+                    b.vy *= 0.997;
 
-                    // 移动
                     b.x += b.vx;
                     b.y += b.vy;
 
-                    // 边界约束（上下）
+                    // 边界
                     if (b.y - b.radius < 0) { b.y = b.radius;
-                        b.vy = Math.abs(b.vy); }
+                        b.vy = Math.abs(b.vy) * 0.8; }
                     if (b.y + b.radius > DESIGN_H) { b.y = DESIGN_H - b.radius;
-                        b.vy = -Math.abs(b.vy); }
+                        b.vy = -Math.abs(b.vy) * 0.8; }
 
-                    // 如果完全离开左侧或右侧太远，移除
-                    if (b.x + b.radius < -50 || b.x - b.radius > DESIGN_W + 100) {
+                    if (b.x + b.radius < -60 || b.x - b.radius > DESIGN_W + 120) {
                         bubbles.splice(i, 1);
                         continue;
                     }
 
-                    // ---- 检测是否被黑洞吞噬 (危险) ----
+                    // 黑洞吞噬
                     if (isBubbleInHole(b.x, b.y, b.radius)) {
                         swallowEffect(b.x, b.y);
                         bubbles.splice(i, 1);
                         continue;
                     }
 
-                    // ---- 检测是否被玩家接住 (距离小于玩家半径+泡泡半径) ----
+                    // 玩家接住
                     if (distToPlayer < PLAYER.r + b.radius) {
                         catchEffect(b);
                         bubbles.splice(i, 1);
                         continue;
                     }
                 }
+
+                // 衰减屏幕震动
+                if (shakeIntensity > 0) {
+                    shakeX = (Math.random() - 0.5) * shakeIntensity * 1.2;
+                    shakeY = (Math.random() - 0.5) * shakeIntensity * 1.2;
+                    shakeIntensity *= 0.92;
+                    if (shakeIntensity < 0.1) shakeIntensity = 0;
+                } else {
+                    shakeX = 0;
+                    shakeY = 0;
+                }
             }
 
             // ---------- 绘制 ----------
             function draw() {
+                ctx.save();
+                ctx.translate(shakeX, shakeY);
+
                 ctx.clearRect(0, 0, DESIGN_W, DESIGN_H);
 
-                // ---- 背景微网格 ----
-                ctx.strokeStyle = 'rgba(255,255,255,0.03)';
-                ctx.lineWidth = 1;
-                for (let x = 0; x <= DESIGN_W; x += 40) {
+                // ---- 星空背景 ----
+                ctx.fillStyle = '#0a0a0a';
+                ctx.fillRect(0, 0, DESIGN_W, DESIGN_H);
+
+                // 星星
+                const starSeed = 12345;
+                for (let i = 0; i < 120; i++) {
+                    const sx = ((i * 137 + 33) % DESIGN_W);
+                    const sy = ((i * 251 + 77) % DESIGN_H);
+                    const brightness = 0.1 + ((i * 37) % 100) / 200;
+                    ctx.fillStyle = `rgba(255,255,255,${brightness})`;
+                    const size = 0.5 + ((i * 13) % 3) * 0.5;
                     ctx.beginPath();
-                    ctx.moveTo(x, 0);
-                    ctx.lineTo(x, DESIGN_H);
-                    ctx.stroke();
-                }
-                for (let y = 0; y <= DESIGN_H; y += 40) {
-                    ctx.beginPath();
-                    ctx.moveTo(0, y);
-                    ctx.lineTo(DESIGN_W, y);
-                    ctx.stroke();
+                    ctx.arc(sx, sy, size, 0, Math.PI * 2);
+                    ctx.fill();
                 }
 
-                // ---- 绘制黑色摄像头（危险区） ----
+                // ---- 黑洞 ----
                 for (let h of BLACK_HOLES) {
-                    // 危险外发光（红色警示）
-                    const gradient = ctx.createRadialGradient(h.x, h.y, h.r * 0.8, h.x, h.y, h.r + 30);
-                    gradient.addColorStop(0, 'rgba(255, 0, 50, 0)');
-                    gradient.addColorStop(0.6, 'rgba(255, 0, 50, 0.15)');
-                    gradient.addColorStop(1, 'rgba(255, 0, 50, 0)');
-                    ctx.fillStyle = gradient;
+                    // 外发光
+                    const grad = ctx.createRadialGradient(h.x, h.y, h.r * 0.6, h.x, h.y, h.r + 35);
+                    grad.addColorStop(0, 'rgba(255, 30, 50, 0)');
+                    grad.addColorStop(0.5, 'rgba(255, 20, 40, 0.12)');
+                    grad.addColorStop(1, 'rgba(255, 0, 30, 0)');
+                    ctx.fillStyle = grad;
                     ctx.beginPath();
-                    ctx.arc(h.x, h.y, h.r + 30, 0, Math.PI * 2);
+                    ctx.arc(h.x, h.y, h.r + 35, 0, Math.PI * 2);
                     ctx.fill();
 
-                    // 核心纯黑
-                    ctx.fillStyle = '#000000';
-                    ctx.shadowColor = 'rgba(255,0,0,0.2)';
-                    ctx.shadowBlur = 15;
+                    // 主体
+                    ctx.shadowColor = 'rgba(255,0,0,0.15)';
+                    ctx.shadowBlur = 20;
+                    ctx.fillStyle = '#050505';
                     ctx.beginPath();
                     ctx.arc(h.x, h.y, h.r, 0, Math.PI * 2);
                     ctx.fill();
                     ctx.shadowBlur = 0;
 
-                    // 边缘
-                    ctx.strokeStyle = 'rgba(60, 60, 60, 0.3)';
-                    ctx.lineWidth = 1;
+                    // 边缘高光
+                    ctx.strokeStyle = 'rgba(80, 80, 80, 0.2)';
+                    ctx.lineWidth = 1.5;
                     ctx.beginPath();
-                    ctx.arc(h.x, h.y, h.r, 0, Math.PI * 2);
+                    ctx.arc(h.x, h.y, h.r - 2, 0, Math.PI * 2);
                     ctx.stroke();
 
-                    // 吞噬旋涡线条
-                    const time = Date.now() * 0.001;
-                    ctx.strokeStyle = 'rgba(255, 50, 50, 0.15)';
-                    ctx.lineWidth = 1.5;
-                    for (let k = 0; k < 3; k++) {
-                        const angle = time * 0.5 + k * (Math.PI * 2 / 3);
-                        const startR = h.r * 0.2;
-                        const endR = h.r * 0.9;
+                    // 旋涡线条
+                    const time = Date.now() * 0.0008;
+                    for (let k = 0; k < 4; k++) {
+                        const angle = time * 0.6 + k * (Math.PI * 2 / 4);
+                        const startR = h.r * 0.15;
+                        const endR = h.r * 0.85;
+                        ctx.strokeStyle = `rgba(255, 60, 60, ${0.08 + 0.04 * Math.sin(time + k)})`;
+                        ctx.lineWidth = 1.2;
                         ctx.beginPath();
                         ctx.moveTo(h.x + Math.cos(angle) * startR, h.y + Math.sin(angle) * startR);
-                        ctx.lineTo(h.x + Math.cos(angle + 0.5) * endR, h.y + Math.sin(angle + 0.5) * endR);
+                        const cpR = (startR + endR) / 2 + 10 * Math.sin(time * 0.7 + k);
+                        ctx.quadraticCurveTo(
+                            h.x + Math.cos(angle + 0.4) * cpR,
+                            h.y + Math.sin(angle + 0.4) * cpR,
+                            h.x + Math.cos(angle + 0.7) * endR,
+                            h.y + Math.sin(angle + 0.7) * endR
+                        );
                         ctx.stroke();
                     }
+
+                    // 内圈暗影
+                    const innerGrad = ctx.createRadialGradient(h.x - 10, h.y - 10, 5, h.x, h.y, h.r);
+                    innerGrad.addColorStop(0, 'rgba(20,20,20,0.3)');
+                    innerGrad.addColorStop(1, 'rgba(0,0,0,0)');
+                    ctx.fillStyle = innerGrad;
+                    ctx.beginPath();
+                    ctx.arc(h.x, h.y, h.r, 0, Math.PI * 2);
+                    ctx.fill();
                 }
 
-                // ---- 绘制泡泡 ----
+                // ---- 泡泡 ----
                 for (let b of bubbles) {
+                    // 轨迹拖尾
+                    if (b.trail.length > 6) b.trail.shift();
+                    b.trail.push({ x: b.x, y: b.y });
+                    for (let t = 0; t < b.trail.length - 1; t++) {
+                        const alpha = (t / b.trail.length) * 0.15;
+                        ctx.fillStyle = `rgba(255,255,255,${alpha})`;
+                        ctx.beginPath();
+                        ctx.arc(b.trail[t].x, b.trail[t].y, b.radius * 0.2 * (t / b.trail.length), 0, Math.PI * 2);
+                        ctx.fill();
+                    }
+
                     // 发光
-                    const grd = ctx.createRadialGradient(b.x - 3, b.y - 3, 2, b.x, b.y, b.radius * 1.5);
+                    const grd = ctx.createRadialGradient(b.x - 3, b.y - 3, 2, b.x, b.y, b.radius * 1.8);
                     grd.addColorStop(0, b.glowColor);
                     grd.addColorStop(1, 'rgba(0,0,0,0)');
                     ctx.fillStyle = grd;
                     ctx.beginPath();
-                    ctx.arc(b.x, b.y, b.radius * 1.5, 0, Math.PI * 2);
+                    ctx.arc(b.x, b.y, b.radius * 1.8, 0, Math.PI * 2);
                     ctx.fill();
 
                     // 主体
                     ctx.shadowColor = b.color;
-                    ctx.shadowBlur = 12;
+                    ctx.shadowBlur = 15;
                     ctx.fillStyle = b.color;
                     ctx.beginPath();
                     ctx.arc(b.x, b.y, b.radius, 0, Math.PI * 2);
@@ -342,105 +464,144 @@
                     ctx.shadowBlur = 0;
 
                     // 高光
-                    ctx.fillStyle = 'rgba(255,255,255,0.4)';
+                    ctx.fillStyle = 'rgba(255,255,255,0.45)';
                     ctx.beginPath();
-                    ctx.ellipse(b.x - b.radius * 0.25, b.y - b.radius * 0.25, b.radius * 0.3, b.radius * 0.15, -0.5, 0, Math.PI * 2);
+                    ctx.ellipse(b.x - b.radius * 0.28, b.y - b.radius * 0.28, b.radius * 0.3, b.radius * 0.16, -0.5, 0, Math
+                        .PI * 2);
                     ctx.fill();
                     ctx.fillStyle = 'rgba(255,255,255,0.15)';
                     ctx.beginPath();
-                    ctx.ellipse(b.x - b.radius * 0.1, b.y - b.radius * 0.4, b.radius * 0.15, b.radius * 0.08, -0.5, 0, Math.PI * 2);
+                    ctx.ellipse(b.x - b.radius * 0.12, b.y - b.radius * 0.42, b.radius * 0.15, b.radius * 0.08, -0.4, 0, Math
+                        .PI * 2);
                     ctx.fill();
+
+                    // 特殊标记
+                    if (b.type === 1) {
+                        // 金色星星标记
+                        ctx.fillStyle = 'rgba(255,215,0,0.7)';
+                        ctx.font = `${b.radius * 0.8}px sans-serif`;
+                        ctx.textAlign = 'center';
+                        ctx.textBaseline = 'middle';
+                        ctx.fillText('★', b.x, b.y + 1);
+                    } else if (b.type === 2) {
+                        // 暗色标记
+                        ctx.fillStyle = 'rgba(100,100,100,0.4)';
+                        ctx.font = `${b.radius * 0.7}px sans-serif`;
+                        ctx.textAlign = 'center';
+                        ctx.textBaseline = 'middle';
+                        ctx.fillText('✦', b.x, b.y + 1);
+                    }
                 }
 
-                // ---- 绘制粒子 ----
+                // ---- 粒子 ----
                 for (let p of particles) {
                     ctx.globalAlpha = p.life;
+                    if (p.glow) {
+                        ctx.shadowBlur = 20;
+                        ctx.shadowColor = p.color;
+                    } else {
+                        ctx.shadowBlur = 0;
+                    }
                     ctx.fillStyle = p.color;
-                    ctx.shadowBlur = 8;
-                    ctx.shadowColor = p.color;
                     ctx.beginPath();
-                    ctx.arc(p.x, p.y, Math.max(0.5, p.radius), 0, Math.PI * 2);
+                    ctx.arc(p.x, p.y, Math.max(0.3, p.radius), 0, Math.PI * 2);
                     ctx.fill();
                 }
-                ctx.globalAlpha = 1.0;
+                ctx.globalAlpha = 1;
                 ctx.shadowBlur = 0;
 
-                // ---- 绘制玩家（白色引力洞） ----
+                // ---- 玩家 ----
                 const p = PLAYER;
-                // 外发光光环（显示引力范围）
-                const glowGrad = ctx.createRadialGradient(p.x, p.y, p.r * 0.5, p.x, p.y, p.grabRadius);
-                glowGrad.addColorStop(0, 'rgba(255, 255, 255, 0.08)');
-                glowGrad.addColorStop(0.7, 'rgba(255, 255, 255, 0.04)');
+
+                // 引力范围光晕
+                const glowGrad = ctx.createRadialGradient(p.x, p.y, p.r * 0.4, p.x, p.y, p.grabRadius);
+                glowGrad.addColorStop(0, 'rgba(255, 255, 255, 0.06)');
+                glowGrad.addColorStop(0.6, 'rgba(255, 255, 255, 0.025)');
                 glowGrad.addColorStop(1, 'rgba(255, 255, 255, 0)');
                 ctx.fillStyle = glowGrad;
                 ctx.beginPath();
                 ctx.arc(p.x, p.y, p.grabRadius, 0, Math.PI * 2);
                 ctx.fill();
 
-                // 核心白色渐变
-                const coreGrad = ctx.createRadialGradient(p.x - 10, p.y - 10, 5, p.x, p.y, p.r);
+                // 脉动光环
+                const pulse = 1 + 0.04 * Math.sin(Date.now() * 0.003);
+                ctx.strokeStyle = `rgba(255,255,255,${0.06 + 0.03 * Math.sin(Date.now() * 0.004)})`;
+                ctx.lineWidth = 1.5;
+                ctx.setLineDash([3, 6]);
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.grabRadius * pulse, 0, Math.PI * 2);
+                ctx.stroke();
+                ctx.setLineDash([]);
+
+                // 核心
+                const coreGrad = ctx.createRadialGradient(p.x - 12, p.y - 12, 6, p.x, p.y, p.r);
                 coreGrad.addColorStop(0, '#ffffff');
-                coreGrad.addColorStop(0.6, '#f0f0ff');
-                coreGrad.addColorStop(1, 'rgba(200, 220, 255, 0.6)');
-                ctx.shadowColor = 'rgba(255, 255, 255, 0.6)';
-                ctx.shadowBlur = 30;
+                coreGrad.addColorStop(0.5, '#f0f4ff');
+                coreGrad.addColorStop(1, 'rgba(180, 210, 255, 0.5)');
+                ctx.shadowColor = 'rgba(255, 255, 255, 0.5)';
+                ctx.shadowBlur = 35;
                 ctx.fillStyle = coreGrad;
                 ctx.beginPath();
                 ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
                 ctx.fill();
                 ctx.shadowBlur = 0;
 
-                // 内圈高光
+                // 高光
                 ctx.fillStyle = 'rgba(255,255,255,0.7)';
                 ctx.beginPath();
-                ctx.ellipse(p.x - 12, p.y - 12, 12, 8, -0.4, 0, Math.PI * 2);
+                ctx.ellipse(p.x - 14, p.y - 14, 14, 9, -0.4, 0, Math.PI * 2);
                 ctx.fill();
-                ctx.fillStyle = 'rgba(255,255,255,0.3)';
+                ctx.fillStyle = 'rgba(255,255,255,0.25)';
                 ctx.beginPath();
-                ctx.ellipse(p.x - 5, p.y - 18, 6, 4, -0.3, 0, Math.PI * 2);
+                ctx.ellipse(p.x - 6, p.y - 20, 7, 4, -0.3, 0, Math.PI * 2);
                 ctx.fill();
 
-                // 显示“吸引范围”的虚线圆（极淡）
-                ctx.setLineDash([4, 8]);
-                ctx.strokeStyle = 'rgba(255,255,255,0.08)';
-                ctx.lineWidth = 1;
+                // ---- UI ----
+                // 分数面板
+                ctx.fillStyle = 'rgba(0,0,0,0.55)';
+                ctx.shadowBlur = 10;
+                ctx.shadowColor = 'rgba(0,0,0,0.5)';
                 ctx.beginPath();
-                ctx.arc(p.x, p.y, p.grabRadius, 0, Math.PI * 2);
-                ctx.stroke();
-                ctx.setLineDash([]);
+                ctx.roundRect ? ctx.roundRect(DESIGN_W - 200, 10, 185, 80, 10) : ctx.rect(DESIGN_W - 200, 10, 185, 80);
+                ctx.fill();
+                ctx.shadowBlur = 0;
 
-                // ---- UI 分数 ----
-                ctx.font = 'bold 22px "PingFang SC", "Helvetica Neue", sans-serif';
+                ctx.font = 'bold 20px "PingFang SC", "Helvetica Neue", sans-serif';
                 ctx.textAlign = 'right';
                 ctx.textBaseline = 'top';
 
-                ctx.fillStyle = 'rgba(0,0,0,0.5)';
-                ctx.beginPath();
-                ctx.rect(DESIGN_W - 190, 12, 170, 70);
-                ctx.fill();
-
-                ctx.shadowBlur = 0;
                 ctx.fillStyle = '#7bed9f';
-                ctx.fillText(`✅ 接住 ${score}`, DESIGN_W - 25, 20);
+                ctx.fillText(`✅ ${score}`, DESIGN_W - 25, 16);
                 ctx.fillStyle = '#ff6b81';
-                ctx.fillText(`💀 被吞 ${lost}`, DESIGN_W - 25, 50);
+                ctx.fillText(`💀 ${lost}`, DESIGN_W - 25, 46);
+
+                // 连击显示
+                if (combo > 2) {
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'bottom';
+                    ctx.font = `bold ${18 + Math.min(combo * 0.5, 10)}px sans-serif`;
+                    ctx.fillStyle = `rgba(255, 215, 0, ${0.6 + 0.4 * Math.sin(Date.now() * 0.01)})`;
+                    ctx.fillText(`🔥 ${combo}连击!`, DESIGN_W / 2, DESIGN_H - 20);
+                }
 
                 // 底部提示
-                ctx.font = '14px "PingFang SC", sans-serif';
+                ctx.font = '13px "PingFang SC", sans-serif';
                 ctx.textAlign = 'left';
                 ctx.textBaseline = 'bottom';
-                ctx.fillStyle = 'rgba(255,255,255,0.2)';
-                ctx.fillText('手指滑动 · 引力接泡泡', 16, DESIGN_H - 16);
+                ctx.fillStyle = 'rgba(255,255,255,0.15)';
+                ctx.fillText('← 滑动控制引力 · 接住泡泡 · 避开黑洞 →', 20, DESIGN_H - 12);
+
+                ctx.restore();
             }
 
-            // ---------- 循环动画 ----------
+            // ---------- 循环 ----------
             function loop() {
                 update();
                 draw();
                 requestAnimationFrame(loop);
             }
 
-            // ---------- 事件处理：更新玩家位置 ----------
+            // ---------- 事件 ----------
             function handlePointer(e) {
                 e.preventDefault();
                 const rect = canvas.getBoundingClientRect();
@@ -459,8 +620,7 @@
                 let canvasX = (clientX - rect.left) * scaleX;
                 let canvasY = (clientY - rect.top) * scaleY;
 
-                // 限制在画布内（并考虑半径，防止跑出太远）
-                const margin = PLAYER.r;
+                const margin = PLAYER.r + 5;
                 canvasX = Math.max(margin, Math.min(DESIGN_W - margin, canvasX));
                 canvasY = Math.max(margin, Math.min(DESIGN_H - margin, canvasY));
 
@@ -468,22 +628,20 @@
                 PLAYER.y = canvasY;
             }
 
-            // 绑定事件（鼠标 + 触摸）
             canvas.addEventListener('mousemove', handlePointer);
             canvas.addEventListener('touchmove', handlePointer, { passive: false });
-            // 也支持鼠标点击移动（第一次点击定位）
             canvas.addEventListener('click', handlePointer);
             canvas.addEventListener('touchstart', handlePointer, { passive: false });
 
-            // 启动游戏
+            // ---------- 启动 ----------
             loop();
 
-            // 初始生成一些泡泡
-            for (let i = 0; i < 8; i++) {
-                setTimeout(() => spawnBubble(), i * 120);
+            // 初始泡泡
+            for (let i = 0; i < 10; i++) {
+                setTimeout(() => spawnBubble(), i * 100 + 50);
             }
 
-            console.log('✨ 引力洞模式启动！手指滑动吸引泡泡，避开左侧黑洞。');
+            console.log('✨ 引力洞启动！滑动控制引力核心，接住彩色泡泡，避开左侧黑洞！');
         })();
     </script>
 </body>
