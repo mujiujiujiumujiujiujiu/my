@@ -10,6 +10,10 @@ const PLAYER_SAFE_MARGIN = 48;
 
 const $ = (selector) => document.querySelector(selector);
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
+const normalize = (x, y) => {
+  const length = Math.hypot(x, y) || 1;
+  return { x: x / length, y: y / length };
+};
 const formatClock = (seconds) => {
   const safeSeconds = Math.max(0, Math.floor(seconds));
   return `${String(Math.floor(safeSeconds / 60)).padStart(2, '0')}:${String(safeSeconds % 60).padStart(2, '0')}`;
@@ -116,6 +120,7 @@ class MemeWarApp {
     this.lastFrameTime = 0;
     this.resultShown = false;
     this.labelNodes = new Map();
+    this.effectLabelNodes = new Map();
 
     this.camera = { x: WORLD.width / 2, y: WORLD.height / 2, zoom: 0.72 };
     this.elements = {
@@ -900,23 +905,154 @@ class MemeWarApp {
       this.renderer.drawLine(projectile.x - 8, projectile.y - 8, projectile.x + 8, projectile.y + 8, 4, projectile.color, 0.88);
       this.renderer.drawCircle(projectile.x, projectile.y, 5, projectile.color, 12, 0.95);
     }
-    for (const effect of this.simulation.effects) {
-      const progress = clamp(effect.life / Math.max(0.01, effect.duration), 0, 1);
-      const radius = effect.radius * (1.08 - progress * 0.2);
-      if (effect.type === 'death') {
-        this.renderer.drawRing(effect.x, effect.y, radius * (1.5 - progress * 0.4), 7, effect.color, 28, progress * 0.66);
-        this.renderer.drawCircle(effect.x, effect.y, radius * 0.5 * progress, effect.color, 20, progress * 0.22);
-      } else if (effect.type === 'heal') {
-        this.renderer.drawRing(effect.x, effect.y, radius, 5, '#9cf6a6', 28, progress * 0.85);
-        this.renderer.drawLine(effect.x - radius * 0.35, effect.y, effect.x + radius * 0.35, effect.y, 4, '#9cf6a6', progress);
-        this.renderer.drawLine(effect.x, effect.y - radius * 0.35, effect.x, effect.y + radius * 0.35, 4, '#9cf6a6', progress);
-      } else if (effect.type === 'mark') {
-        this.renderer.drawRing(effect.x, effect.y, radius, 3, effect.color, 20, progress * 0.85);
-      } else {
-        this.renderer.drawRing(effect.x, effect.y, radius, 5, effect.color, 28, progress * 0.8);
-        this.renderer.drawCircle(effect.x, effect.y, Math.max(2, radius * 0.22), effect.color, 20, progress * 0.12);
+    for (const effect of this.simulation.effects) this.drawEffect(effect);
+  }
+
+  drawEffect(effect) {
+    const renderer = this.renderer;
+    const progress = clamp(effect.life / Math.max(0.05, effect.duration), 0, 1);
+    const elapsed = 1 - progress;
+    const fade = clamp(progress * 1.2, 0, 1);
+    const radius = effect.radius * (0.76 + elapsed * 0.42);
+    const pulse = 0.5 + 0.5 * Math.sin(this.renderTime * 8 + effect.id);
+    const color = effect.color;
+    const drawRing = (ringRadius, thickness = 4, alpha = fade) => renderer.drawRing(effect.x, effect.y, ringRadius, thickness, color, 28, alpha);
+
+    if (effect.type === 'waveSpawn') {
+      for (let index = 0; index < 3; index += 1) {
+        const ringProgress = (elapsed + index * 0.18) % 1;
+        renderer.drawRing(effect.x, effect.y, effect.radius * (0.24 + ringProgress * 0.84), 5 - index, color, 28, fade * (0.72 - index * 0.14) * (1 - ringProgress * 0.55));
       }
+      renderer.drawLine(effect.x, effect.y - effect.radius * 0.72, effect.x, effect.y + effect.radius * 0.72, 3, color, fade * 0.3);
+      for (let index = 0; index < 8; index += 1) {
+        const angle = index * Math.PI / 4 + this.renderTime * 0.8;
+        const orbit = effect.radius * (0.28 + elapsed * 0.38);
+        renderer.drawCircle(effect.x + Math.cos(angle) * orbit, effect.y + Math.sin(angle) * orbit, 5, color, 12, fade * 0.7);
+      }
+      return;
     }
+
+    if (effect.type === 'spawn') {
+      drawRing(radius, 4, fade * 0.9);
+      renderer.drawCircle(effect.x, effect.y, Math.max(3, radius * 0.16), color, 16, fade * 0.18);
+      for (let index = 0; index < 6; index += 1) {
+        const angle = index * Math.PI / 3 - elapsed * 3.5;
+        const orbit = radius * (0.58 + pulse * 0.12);
+        renderer.drawCircle(effect.x + Math.cos(angle) * orbit, effect.y + Math.sin(angle) * orbit, 4, color, 12, fade * 0.68);
+      }
+      return;
+    }
+
+    if (effect.type === 'teleport') {
+      if (Number.isFinite(effect.fromX) && Number.isFinite(effect.fromY)) {
+        renderer.drawLine(effect.fromX, effect.fromY, effect.x, effect.y, 3, color, fade * 0.36);
+      }
+      if (effect.phase === 'out') {
+        drawRing(effect.radius * (0.62 + elapsed * 0.7), 5, fade * 0.9);
+        renderer.drawCircle(effect.x, effect.y, Math.max(2, effect.radius * 0.32 * progress), color, 16, fade * 0.28);
+      } else {
+        drawRing(effect.radius * (1.22 - elapsed * 0.4), 6, fade * 0.9);
+        drawRing(effect.radius * (0.46 + elapsed * 0.22), 3, fade * 0.62);
+        for (let index = 0; index < 8; index += 1) {
+          const angle = index * Math.PI / 4 + 0.18;
+          const inner = effect.radius * 0.36;
+          const outer = effect.radius * (0.66 + (index % 2) * 0.14);
+          renderer.drawLine(effect.x + Math.cos(angle) * inner, effect.y + Math.sin(angle) * inner, effect.x + Math.cos(angle) * outer, effect.y + Math.sin(angle) * outer, 3, color, fade * 0.66);
+        }
+      }
+      return;
+    }
+
+    if (effect.type === 'charge') {
+      if (Number.isFinite(effect.fromX) && Number.isFinite(effect.fromY)) {
+        const direction = normalize(effect.x - effect.fromX, effect.y - effect.fromY);
+        renderer.drawLine(effect.fromX, effect.fromY, effect.x, effect.y, 5, color, fade * 0.32);
+        renderer.drawLine(effect.x, effect.y, effect.x - direction.x * 30 - direction.y * 15, effect.y - direction.y * 30 + direction.x * 15, 5, color, fade * 0.8);
+        renderer.drawLine(effect.x, effect.y, effect.x - direction.x * 30 + direction.y * 15, effect.y - direction.y * 30 - direction.x * 15, 5, color, fade * 0.8);
+      }
+      drawRing(radius * (0.9 + pulse * 0.12), 5, fade * 0.9);
+      drawRing(radius * 0.48, 3, fade * 0.65);
+      return;
+    }
+
+    if (effect.type === 'summon') {
+      drawRing(radius * (0.92 + pulse * 0.16), 6, fade * 0.92);
+      drawRing(radius * 0.5, 3, fade * 0.76);
+      renderer.drawCircle(effect.x, effect.y, radius * 0.18, color, 16, fade * 0.22);
+      const count = Math.max(2, Math.min(4, effect.count ?? 2));
+      for (let index = 0; index < count; index += 1) {
+        const angle = index * Math.PI * 2 / count + this.renderTime * 1.4;
+        const orbit = radius * 0.72;
+        renderer.drawLine(effect.x, effect.y, effect.x + Math.cos(angle) * orbit, effect.y + Math.sin(angle) * orbit, 2, color, fade * 0.32);
+        renderer.drawCircle(effect.x + Math.cos(angle) * orbit, effect.y + Math.sin(angle) * orbit, 6, color, 14, fade * 0.8);
+      }
+      return;
+    }
+
+    if (effect.type === 'shield') {
+      drawRing(radius * 0.9, 5, fade * 0.8);
+      const points = 6;
+      for (let index = 0; index < points; index += 1) {
+        const firstAngle = index * Math.PI * 2 / points - Math.PI / 2;
+        const secondAngle = (index + 1) * Math.PI * 2 / points - Math.PI / 2;
+        renderer.drawLine(effect.x + Math.cos(firstAngle) * radius * 0.72, effect.y + Math.sin(firstAngle) * radius * 0.72, effect.x + Math.cos(secondAngle) * radius * 0.72, effect.y + Math.sin(secondAngle) * radius * 0.72, 3, color, fade * 0.78);
+      }
+      return;
+    }
+
+    if (effect.type === 'taunt') {
+      drawRing(radius * (0.7 + elapsed * 0.5), 5, fade * 0.9);
+      drawRing(radius * (0.38 + elapsed * 0.26), 3, fade * 0.62);
+      for (let index = 0; index < 6; index += 1) {
+        const angle = index * Math.PI / 3;
+        renderer.drawLine(effect.x + Math.cos(angle) * radius * 0.55, effect.y + Math.sin(angle) * radius * 0.55, effect.x + Math.cos(angle) * radius * 0.84, effect.y + Math.sin(angle) * radius * 0.84, 3, color, fade * 0.65);
+      }
+      return;
+    }
+
+    if (effect.type === 'telegraph') {
+      const segments = 12;
+      const telegraphRadius = effect.radius * (0.9 + progress * 0.2);
+      for (let index = 0; index < segments; index += 2) {
+        const firstAngle = index * Math.PI * 2 / segments;
+        const secondAngle = (index + 1) * Math.PI * 2 / segments;
+        renderer.drawLine(effect.x + Math.cos(firstAngle) * telegraphRadius, effect.y + Math.sin(firstAngle) * telegraphRadius, effect.x + Math.cos(secondAngle) * telegraphRadius, effect.y + Math.sin(secondAngle) * telegraphRadius, 3, color, fade * 0.9);
+      }
+      renderer.drawLine(effect.x - 12, effect.y, effect.x + 12, effect.y, 3, color, fade * 0.75);
+      renderer.drawLine(effect.x, effect.y - 12, effect.x, effect.y + 12, 3, color, fade * 0.75);
+      return;
+    }
+
+    if (effect.type === 'burst') {
+      renderer.drawCircle(effect.x, effect.y, radius * 0.2 * progress, color, 16, fade * 0.34);
+      for (let index = 0; index < 8; index += 1) {
+        const angle = index * Math.PI / 4 + elapsed * 0.45;
+        renderer.drawLine(effect.x + Math.cos(angle) * radius * 0.2, effect.y + Math.sin(angle) * radius * 0.2, effect.x + Math.cos(angle) * radius * (0.7 + elapsed * 0.35), effect.y + Math.sin(angle) * radius * (0.7 + elapsed * 0.35), 4, color, fade * 0.76);
+      }
+      return;
+    }
+
+    if (effect.type === 'death') {
+      renderer.drawRing(effect.x, effect.y, radius * (1.5 - progress * 0.4), 7, color, 28, progress * 0.66);
+      renderer.drawCircle(effect.x, effect.y, radius * 0.5 * progress, color, 20, progress * 0.22);
+      return;
+    }
+
+    if (effect.type === 'heal') {
+      renderer.drawRing(effect.x, effect.y, radius, 5, '#9cf6a6', 28, progress * 0.85);
+      renderer.drawLine(effect.x - radius * 0.35, effect.y, effect.x + radius * 0.35, effect.y, 4, '#9cf6a6', progress);
+      renderer.drawLine(effect.x, effect.y - radius * 0.35, effect.x, effect.y + radius * 0.35, 4, '#9cf6a6', progress);
+      return;
+    }
+
+    if (effect.type === 'mark' || effect.type === 'skill') {
+      drawRing(radius, effect.type === 'mark' ? 3 : 5, fade * 0.85);
+      renderer.drawCircle(effect.x, effect.y, Math.max(2, radius * 0.22), color, 20, fade * 0.12);
+      return;
+    }
+
+    drawRing(radius, 5, fade * 0.8);
+    renderer.drawCircle(effect.x, effect.y, Math.max(2, radius * 0.22), color, 20, fade * 0.12);
   }
 
   drawUnit(unit) {
@@ -982,6 +1118,35 @@ class MemeWarApp {
       if (!activeIds.has(id)) {
         node.remove();
         this.labelNodes.delete(id);
+      }
+    }
+
+    const activeEffectIds = new Set();
+    if (this.simulation && this.phase !== 'prep') {
+      for (const effect of this.simulation.effects) {
+        if (!effect.label) continue;
+        const id = `effect-${effect.id}`;
+        activeEffectIds.add(id);
+        let label = this.effectLabelNodes.get(id);
+        if (!label) {
+          label = makeElement('div', 'effect-label');
+          this.effectLabelNodes.set(id, label);
+          this.worldLabels.append(label);
+        }
+        label.className = `effect-label effect-${effect.type}`;
+        label.textContent = effect.label;
+        label.style.setProperty('--effect-color', effect.color ?? '#f4c66a');
+        const offset = Math.min(Math.max(effect.radius * 0.22, 18), 56) + 22;
+        const screen = this.renderer.worldToScreen(effect.x, effect.y - offset);
+        label.style.left = `${screen.x}px`;
+        label.style.top = `${screen.y}px`;
+        label.style.opacity = this.isScreenVisible(screen.x, screen.y) ? String(clamp(effect.life / 0.18, 0, 1)) : '0';
+      }
+    }
+    for (const [id, node] of this.effectLabelNodes.entries()) {
+      if (!activeEffectIds.has(id)) {
+        node.remove();
+        this.effectLabelNodes.delete(id);
       }
     }
   }

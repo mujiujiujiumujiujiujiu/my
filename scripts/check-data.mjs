@@ -4,9 +4,10 @@ const units = JSON.parse(await readFile(new URL('../data/units.json', import.met
 const levels = JSON.parse(await readFile(new URL('../data/levels.json', import.meta.url), 'utf8'));
 
 if (!Array.isArray(units.units) || units.units.length < 10) throw new Error('units.json: units 太少');
-if (!Array.isArray(levels.levels) || levels.levels.length !== 6) throw new Error('levels.json: 必须有 6 关');
+if (!Array.isArray(levels.levels) || levels.levels.length < 10) throw new Error('levels.json: 至少需要 10 关');
 
 const ids = new Set(units.units.map((unit) => unit.id));
+const levelIds = new Set();
 for (const unit of units.units) {
   for (const key of ['id', 'name', 'role', 'color', 'accent']) {
     if (!unit[key]) throw new Error(`units.json: ${unit.id ?? 'unknown'} 缺少 ${key}`);
@@ -16,6 +17,8 @@ for (const unit of units.units) {
   }
 }
 for (const level of levels.levels) {
+  if (levelIds.has(level.id)) throw new Error(`levels.json: 重复关卡 id ${level.id}`);
+  levelIds.add(level.id);
   if (!Number.isFinite(level.budget) || !Array.isArray(level.enemies) || level.enemies.length === 0 || !Array.isArray(level.waves) || level.waves.length < 2) {
     throw new Error(`levels.json: ${level.id} 结构不完整`);
   }

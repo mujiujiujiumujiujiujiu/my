@@ -44,6 +44,7 @@ class BattleSimulation {
     this.goldBonus = 0;
     this.niuGold = 0;
     this.nextId = 1;
+    this.nextEffectId = 1;
     this.rngState = (level.id * 0x9e3779b9) >>> 0;
     this.lastCombatLogAt = -99;
     this.wavePlans = this.buildWavePlans(level);
@@ -120,6 +121,11 @@ class BattleSimulation {
 
   spawnWave(entries) {
     this.buildEnemyUnits(entries);
+    const count = entries.reduce((sum, entry) => sum + entry.count, 0);
+    this.addEffect('waveSpawn', 1280, WORLD.height / 2, '#ff796a', 240, 1.25, {
+      label: `第 ${this.waveIndex + 1} 波入场`,
+      count,
+    });
   }
 
   advanceWave() {
@@ -148,6 +154,7 @@ class BattleSimulation {
         const x = 1120 + column * 122 + (row % 2) * 36;
         const y = 190 + row * 150 + (column % 2) * 28;
         this.units.push(this.createUnit(data, 'enemy', x, y));
+        this.addEffect('spawn', x, y, data.accent ?? data.color, data.radius * 2.2, 0.62);
         order += 1;
       }
     }
@@ -205,6 +212,7 @@ class BattleSimulation {
       }
       if (status.delayed <= 0 && status.delayedDamage > 0) {
         const markerSource = this.findUnit(status.delayedBy);
+        this.addEffect('burst', unit.x, unit.y, '#ffe066', unit.data.radius * 2.4, 0.9, { label: '延迟爆发' });
         if (markerSource?.alive) this.applyDamage(markerSource, unit, status.delayedDamage, 'mark', 65);
         status.delayedDamage = 0;
         status.delayedBy = null;
@@ -345,16 +353,21 @@ class BattleSimulation {
     const allies = this.aliveUnits.filter((candidate) => candidate.side === unit.side && candidate.id !== unit.id);
     const nearbyEnemies = (center, radius) => enemies.filter((candidate) => distance(center, candidate) <= radius + candidate.data.radius * 0.25);
     const setCooldown = () => { unit.skillCds[skill.name] = skill.cd; };
-    const displaySkill = () => {
-      this.addEffect('skill', unit.x, unit.y, unit.data.accent, skill.radius ?? 75, 0.48);
+    const displaySkill = (effectType = 'skill', meta = {}) => {
+      const duration = effectType === 'skill' ? 0.48 : 1.08;
+      this.addEffect(effectType, unit.x, unit.y, unit.data.accent, skill.radius ?? 75, duration, meta);
       this.emit(`${unit.data.name}：${skill.name}`, 'skill');
     };
 
     if (skill.type === 'dash' && target && distance(unit, target) < 420) {
+      const originX = unit.x;
+      const originY = unit.y;
       const direction = normalize(target.x - unit.x, target.y - unit.y);
       unit.x = clamp(target.x - direction.x * (target.data.radius + unit.data.radius + 10), WORLD.minX, WORLD.maxX);
       unit.y = clamp(target.y - direction.y * (target.data.radius + unit.data.radius + 10), WORLD.minY, WORLD.maxY);
       this.applyDamage(unit, target, skill.damage, 'skill', skill.knockback);
+      this.addEffect('teleport', originX, originY, unit.data.accent, unit.data.radius * 2.2, 0.5, { phase: 'out' });
+      this.addEffect('teleport', unit.x, unit.y, unit.data.accent, unit.data.radius * 2.6, 1.2, { label: '突进', phase: 'in', fromX: originX, fromY: originY });
       setCooldown();
       displaySkill();
       return true;
@@ -389,6 +402,8 @@ class BattleSimulation {
     }
 
     if (skill.type === 'charge' && target && distance(unit, target) > 120) {
+      const originX = unit.x;
+      const originY = unit.y;
       const direction = normalize(target.x - unit.x, target.y - unit.y);
       unit.x = clamp(unit.x + direction.x * 230, WORLD.minX, WORLD.maxX);
       unit.y = clamp(unit.y + direction.y * 230, WORLD.minY, WORLD.maxY);
@@ -397,7 +412,7 @@ class BattleSimulation {
         candidate.status.stun = Math.max(candidate.status.stun, skill.stun ?? 0.8);
       }
       setCooldown();
-      displaySkill();
+      displaySkill('charge', { label: '冲锋', fromX: originX, fromY: originY });
       return true;
     }
 
@@ -411,7 +426,7 @@ class BattleSimulation {
     if (skill.type === 'guard') {
       unit.status.guard = skill.duration;
       setCooldown();
-      displaySkill();
+      displaySkill('shield', { label: '护盾' });
       return true;
     }
 
@@ -424,7 +439,7 @@ class BattleSimulation {
       }
       unit.status.damageReduction = Math.max(unit.status.damageReduction, 2.5);
       setCooldown();
-      displaySkill();
+      displaySkill('taunt', { label: '嘲讽' });
       return true;
     }
 
@@ -453,9 +468,10 @@ class BattleSimulation {
         const angle = count === 0 ? -0.8 : 0.8;
         const summon = this.createUnit(summonData, unit.side, unit.x + Math.cos(angle) * 48, unit.y + Math.sin(angle) * 48, { isSummon: true, ttl: skill.duration });
         this.units.push(summon);
+        this.addEffect('spawn', summon.x, summon.y, summonData.color, summonData.radius * 2.4, 0.62);
       }
       setCooldown();
-      displaySkill();
+      displaySkill('summon', { label: '召唤', count: skill.count });
       this.emit('临时召唤物加入混战，场面更挤了。', 'info');
       return true;
     }
@@ -481,7 +497,7 @@ class BattleSimulation {
       injured.hp += amount;
       injured.pulse = 0.55;
       this.floatingTexts.push({ x: injured.x, y: injured.y - 38, text: `+${Math.round(amount)}`, color: '#9cf6a6', life: 0.9, maxLife: 0.9 });
-      this.addEffect('heal', injured.x, injured.y, '#9cf6a6', 68, 0.55);
+      this.addEffect('heal', injured.x, injured.y, '#9cf6a6', 68, 0.85, { label: '治疗' });
       setCooldown();
       displaySkill();
       return true;
@@ -491,7 +507,7 @@ class BattleSimulation {
       target.status.delayed = skill.delay;
       target.status.delayedDamage = skill.damage;
       target.status.delayedBy = unit.id;
-      this.addEffect('mark', target.x, target.y, '#ffe066', 44, skill.delay);
+      this.addEffect('telegraph', target.x, target.y, '#ffe066', 44, skill.delay, { label: '延迟' });
       setCooldown();
       displaySkill();
       return true;
@@ -507,11 +523,15 @@ class BattleSimulation {
     }
 
     if (skill.type === 'blink' && target && distance(unit, target) < 600) {
+      const originX = unit.x;
+      const originY = unit.y;
       const side = target.side === 'enemy' ? 1 : -1;
       unit.x = clamp(target.x + side * (target.data.radius + unit.data.radius + 8), WORLD.minX, WORLD.maxX);
       unit.y = clamp(target.y + (this.random() - 0.5) * 70, WORLD.minY, WORLD.maxY);
       unit.status.damageReduction = Math.max(unit.status.damageReduction, 0.55);
       unit.pulse = 0.8;
+      this.addEffect('teleport', originX, originY, unit.data.accent, unit.data.radius * 2.2, 0.5, { phase: 'out' });
+      this.addEffect('teleport', unit.x, unit.y, unit.data.accent, unit.data.radius * 2.8, 1.3, { label: '瞬移', phase: 'in', fromX: originX, fromY: originY });
       setCooldown();
       displaySkill();
       return true;
@@ -613,7 +633,11 @@ class BattleSimulation {
         this.goldBonus += 1;
       }
     }
-    this.addEffect('death', target.x, target.y, target.data.color, target.data.radius * 2.2, 0.62);
+    if (reason === 'summon_expired') {
+      this.addEffect('burst', target.x, target.y, target.data.accent ?? target.data.color, target.data.radius * 2.4, 0.82, { label: '召唤结束' });
+    } else {
+      this.addEffect('death', target.x, target.y, target.data.color, target.data.radius * 2.2, 0.62);
+    }
     this.emit(`${target.data.name} 出局${reason === 'summon_expired' ? '（召唤时间到）' : ''}。`, 'danger');
   }
 
@@ -687,8 +711,20 @@ class BattleSimulation {
     this.floatingTexts = this.floatingTexts.filter((text) => text.life > 0);
   }
 
-  addEffect(type, x, y, color, radius, duration) {
-    this.effects.push({ type, x, y, color, radius, duration, life: duration });
+  addEffect(type, x, y, color, radius, duration, meta = {}) {
+    const safeDuration = Math.max(0.05, duration);
+    this.effects.push({
+      ...meta,
+      id: this.nextEffectId++,
+      type,
+      x,
+      y,
+      color,
+      radius,
+      duration: safeDuration,
+      life: safeDuration,
+    });
+    if (this.effects.length > 96) this.effects.splice(0, this.effects.length - 96);
   }
 
   findUnit(id) {
