@@ -1,16 +1,18 @@
 const { BattleSimulation, WORLD } = window.MemeWarSim;
 const { NativeWebGLRenderer } = window.MemeWarWebGL;
 
-const UNIT_TEXTURE_URL = window.MEME_WAR_TEXTURE_URL || window.MEME_WAR_TEXTURE_DATA || './assets/units-handdrawn-atlas-low.webp';
+const UNIT_TEXTURE_URL = window.MEME_WAR_TEXTURE_URL || window.MEME_WAR_TEXTURE_DATA || './assets/units-handdrawn-atlas-mobile.webp';
 const MAX_DEPLOYMENTS = 24;
 const MIN_ZOOM = 0.24;
 const MAX_ZOOM = 1.45;
 const PLAYER_ZONE_RIGHT = 760;
 const PLAYER_SAFE_MARGIN = 48;
+const DEPLOYMENT_GAP = 6;
 const IS_FILE_PROTOCOL = window.location.protocol === 'file:';
 
 const $ = (selector) => document.querySelector(selector);
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
+const getUnitFootprintRadius = (unit) => Math.max((Number(unit?.radius) || 0) * 1.5, 35);
 const normalize = (x, y) => {
   const length = Math.hypot(x, y) || 1;
   return { x: x / length, y: y / length };
@@ -550,6 +552,8 @@ class MemeWarApp {
       pointerId: event.pointerId,
       startX: event.clientX,
       startY: event.clientY,
+      startScrollLeft: this.elements.unitList.scrollLeft,
+      scrolling: false,
     };
   }
 
@@ -558,6 +562,16 @@ class MemeWarApp {
     if (this.phase !== 'prep') {
       this.cardPointer = null;
       this.finishUnitCardDrag();
+      return;
+    }
+
+    if (this.cardPointer?.scrolling) {
+      const scrollDelta = this.isVirtualLandscape()
+        ? event.clientY - this.cardPointer.startY
+        : event.clientX - this.cardPointer.startX;
+      const maxScroll = Math.max(0, this.elements.unitList.scrollWidth - this.elements.unitList.clientWidth);
+      this.elements.unitList.scrollLeft = clamp(this.cardPointer.startScrollLeft - scrollDelta, 0, maxScroll);
+      event.preventDefault();
       return;
     }
 
@@ -570,7 +584,21 @@ class MemeWarApp {
       const dx = currentPoint.x - startPoint.x;
       const dy = currentPoint.y - startPoint.y;
       if (Math.hypot(dx, dy) < 10) return;
-      if (event.pointerType === 'touch' && Math.abs(dx) > Math.abs(dy)) return;
+      const stillInCardList = this.isPointInside(this.elements.unitList, event);
+      const physicalScrollDelta = this.isVirtualLandscape()
+        ? event.clientY - this.cardPointer.startY
+        : event.clientX - this.cardPointer.startX;
+      const physicalCrossDelta = this.isVirtualLandscape()
+        ? event.clientX - this.cardPointer.startX
+        : event.clientY - this.cardPointer.startY;
+      if (event.pointerType === 'touch' && this.isVirtualLandscape() && stillInCardList && Math.abs(physicalScrollDelta) >= Math.abs(physicalCrossDelta)) {
+        this.cardPointer.scrolling = true;
+        const maxScroll = Math.max(0, this.elements.unitList.scrollWidth - this.elements.unitList.clientWidth);
+        this.elements.unitList.scrollLeft = clamp(this.cardPointer.startScrollLeft - physicalScrollDelta, 0, maxScroll);
+        event.preventDefault();
+        return;
+      }
+      if (event.pointerType === 'touch' && !this.isVirtualLandscape() && stillInCardList && Math.abs(dx) > Math.abs(dy)) return;
       const unit = this.unitsById[this.cardPointer.unitId];
       if (!unit || this.budgetRemaining < unit.price) {
         this.cardPointer = null;
@@ -601,7 +629,16 @@ class MemeWarApp {
 
   onGlobalPointerUp(event) {
     if (this.cardPointer?.pointerId === event.pointerId) {
+      const wasScrolling = this.cardPointer.scrolling;
       this.cardPointer = null;
+      if (wasScrolling) {
+        this.suppressCardClick = true;
+        window.clearTimeout(this.suppressCardClickTimer);
+        this.suppressCardClickTimer = window.setTimeout(() => {
+          this.suppressCardClick = false;
+        }, 250);
+        event.preventDefault();
+      }
       return;
     }
     if (this.draggedUnit?.pointerId !== event.pointerId) return;
@@ -638,6 +675,9 @@ class MemeWarApp {
           pointerId: event.pointerId,
           originX: existing.x,
           originY: existing.y,
+          lastValidX: existing.x,
+          lastValidY: existing.y,
+          blocked: false,
           overCard: false,
           targetCardId: null,
         };
@@ -672,12 +712,31 @@ class MemeWarApp {
       this.draggedDeployment.overCard = Boolean(targetCard);
       this.draggedDeployment.targetCardId = targetCard?.dataset.unitId ?? null;
       this.updateDragDropUi();
-      if (!this.isPointInside(this.canvas, event)) return;
+      if (!this.isPointInside(this.canvas, event)) {
+        this.hoverWorld = null;
+        this.elements.app.classList.remove('drag-valid');
+        return;
+      }
       const world = this.pointerToWorld(event);
       const deployment = this.draggedDeployment.deployment;
       const data = this.unitsById[deployment.unitId];
-      deployment.x = clamp(world.x, WORLD.minX + PLAYER_SAFE_MARGIN, PLAYER_ZONE_RIGHT - data.radius);
-      deployment.y = clamp(world.y, WORLD.minY + PLAYER_SAFE_MARGIN, WORLD.maxY - PLAYER_SAFE_MARGIN);
+      this.hoverWorld = world;
+      const footprint = getUnitFootprintRadius(data);
+      const minX = WORLD.minX + Math.max(PLAYER_SAFE_MARGIN, footprint);
+      const maxX = PLAYER_ZONE_RIGHT - footprint;
+      const minY = WORLD.minY + Math.max(PLAYER_SAFE_MARGIN, footprint);
+      const maxY = WORLD.maxY - Math.max(PLAYER_SAFE_MARGIN, footprint);
+      const nextX = clamp(world.x, minX, maxX);
+      const nextY = clamp(world.y, minY, maxY);
+      const valid = this.isValidPlacement(nextX, nextY, data, deployment);
+      this.draggedDeployment.blocked = !valid;
+      this.elements.app.classList.toggle('drag-valid', valid);
+      if (valid) {
+        deployment.x = nextX;
+        deployment.y = nextY;
+        this.draggedDeployment.lastValidX = nextX;
+        this.draggedDeployment.lastValidY = nextY;
+      }
       return;
     }
     const world = this.pointerToWorld(event);
@@ -700,15 +759,22 @@ class MemeWarApp {
       if (event.type === 'pointercancel') {
         drag.deployment.x = drag.originX;
         drag.deployment.y = drag.originY;
+      } else if (drag.blocked) {
+        drag.deployment.x = drag.lastValidX;
+        drag.deployment.y = drag.lastValidY;
       }
       this.draggedDeployment = null;
+      this.hoverWorld = null;
       this.elements.app.classList.remove('is-dragging-deployment');
+      this.elements.app.classList.remove('drag-valid');
       this.updateDragDropUi();
       if (overCard && event.type !== 'pointercancel') {
         const data = this.unitsById[drag.deployment.unitId];
         this.removeDeployment(drag.deployment);
         this.showToast(`${data.name} 已撤销，${data.price} 金已退回。`);
         this.audio.blip(190, 0.06, 'square', 0.018);
+      } else if (drag.blocked && event.type !== 'pointercancel') {
+        this.showToast('这个位置太挤了，已保持上一个有效位置。');
       }
       return;
     }
@@ -817,7 +883,12 @@ class MemeWarApp {
       this.showToast(`最多部署 ${MAX_DEPLOYMENTS} 个单位。`);
       return;
     }
-    if (x > PLAYER_ZONE_RIGHT - unit.radius || x < WORLD.minX + PLAYER_SAFE_MARGIN || y < WORLD.minY + PLAYER_SAFE_MARGIN || y > WORLD.maxY - PLAYER_SAFE_MARGIN) {
+    const footprint = getUnitFootprintRadius(unit);
+    const minX = WORLD.minX + Math.max(PLAYER_SAFE_MARGIN, footprint);
+    const maxX = PLAYER_ZONE_RIGHT - footprint;
+    const minY = WORLD.minY + Math.max(PLAYER_SAFE_MARGIN, footprint);
+    const maxY = WORLD.maxY - Math.max(PLAYER_SAFE_MARGIN, footprint);
+    if (x > maxX || x < minX || y < minY || y > maxY) {
       this.showToast('只能放在左侧部署区内。');
       return;
     }
@@ -825,12 +896,18 @@ class MemeWarApp {
       this.showToast('预算不够了，换一张更便宜的卡。');
       return;
     }
+    const placementX = clamp(x, minX, maxX);
+    const placementY = clamp(y, minY, maxY);
+    if (!this.isDeploymentPositionFree(placementX, placementY, unit)) {
+      this.showToast('这个位置太挤了，请把单位之间拉开。');
+      return;
+    }
     const deployment = {
       id: `deployment-${this.nextDeploymentId++}`,
       unitId: unit.id,
       data: unit,
-      x: clamp(x, WORLD.minX + PLAYER_SAFE_MARGIN, PLAYER_ZONE_RIGHT - unit.radius),
-      y: clamp(y, WORLD.minY + PLAYER_SAFE_MARGIN, WORLD.maxY - PLAYER_SAFE_MARGIN),
+      x: placementX,
+      y: placementY,
     };
     this.deployments.push(deployment);
     this.spent += unit.price;
@@ -844,7 +921,7 @@ class MemeWarApp {
     for (const deployment of this.deployments) {
       const data = this.unitsById[deployment.unitId];
       const currentDistance = Math.hypot(deployment.x - x, deployment.y - y);
-      if (currentDistance <= data.radius + 14 && currentDistance < closestDistance) {
+      if (currentDistance <= getUnitFootprintRadius(data) + 14 && currentDistance < closestDistance) {
         closest = deployment;
         closestDistance = currentDistance;
       }
@@ -1021,15 +1098,38 @@ class MemeWarApp {
 
     if (this.phase === 'prep' && this.selectedUnitId) {
       const unit = this.unitsById[this.selectedUnitId];
-      if (this.hoverWorld && this.isValidPlacement(this.hoverWorld.x, this.hoverWorld.y, unit)) {
+      const ignoreDeployment = this.draggedDeployment?.deployment ?? null;
+      const valid = this.hoverWorld && this.isValidPlacement(this.hoverWorld.x, this.hoverWorld.y, unit, ignoreDeployment);
+      if (valid) {
         renderer.drawCircle(this.hoverWorld.x, this.hoverWorld.y, unit.radius, unit.color, 24, 0.28);
-        renderer.drawRing(this.hoverWorld.x, this.hoverWorld.y, unit.radius + 6, 3, '#63e0cb', 24, 0.8);
+        renderer.drawRing(this.hoverWorld.x, this.hoverWorld.y, getUnitFootprintRadius(unit) + 6, 3, '#63e0cb', 24, 0.8);
+      } else if (this.hoverWorld && (this.draggedUnit || this.draggedDeployment)) {
+        renderer.drawRing(this.hoverWorld.x, this.hoverWorld.y, getUnitFootprintRadius(unit) + 6, 4, '#ff796a', 24, 0.86);
       }
     }
   }
 
-  isValidPlacement(x, y, unit) {
-    return Boolean(unit) && x >= WORLD.minX + PLAYER_SAFE_MARGIN && x <= PLAYER_ZONE_RIGHT - unit.radius && y >= WORLD.minY + PLAYER_SAFE_MARGIN && y <= WORLD.maxY - PLAYER_SAFE_MARGIN && this.budgetRemaining >= unit.price;
+  isValidPlacement(x, y, unit, ignoreDeployment = null) {
+    const availableBudget = this.budgetRemaining + (ignoreDeployment?.unitId === unit?.id ? unit.price : 0);
+    if (!unit || availableBudget < unit.price) return false;
+    const footprint = getUnitFootprintRadius(unit);
+    const minX = WORLD.minX + Math.max(PLAYER_SAFE_MARGIN, footprint);
+    const maxX = PLAYER_ZONE_RIGHT - footprint;
+    const minY = WORLD.minY + Math.max(PLAYER_SAFE_MARGIN, footprint);
+    const maxY = WORLD.maxY - Math.max(PLAYER_SAFE_MARGIN, footprint);
+    return x >= minX && x <= maxX && y >= minY && y <= maxY && this.isDeploymentPositionFree(x, y, unit, ignoreDeployment);
+  }
+
+  isDeploymentPositionFree(x, y, unit, ignoreDeployment = null) {
+    if (!unit) return false;
+    const footprint = getUnitFootprintRadius(unit);
+    return this.deployments.every((deployment) => {
+      if (deployment === ignoreDeployment) return true;
+      const other = this.unitsById[deployment.unitId];
+      if (!other) return true;
+      const minimum = footprint + getUnitFootprintRadius(other) + DEPLOYMENT_GAP;
+      return Math.hypot(deployment.x - x, deployment.y - y) >= minimum;
+    });
   }
 
   drawUnitsAndEffects() {

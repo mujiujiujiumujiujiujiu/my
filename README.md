@@ -6,7 +6,7 @@
 
 最简单的方式：双击项目根目录里的 `index.html`，现代浏览器会直接加载静态内嵌数据并启动游戏，无需 Node.js。`file://` 下浏览器不允许 WebGL 直接上传本地图像，项目会自动用 DOM 图集回退显示角色美术；请保留整个 `assets` 文件夹。
 
-如果修改了 `data/*.json`、`styles.css` 或 `src/*.js`，先运行一次 `npm run build`，它会把最新数据、样式和运行代码写入 `index.html`，保证双击入口和 GitHub Pages 使用同一份内容。默认使用约 112 KB 的低清 WebP 图集，首屏先用轻量几何/文字占位，纹理失败也不会卡在加载画面；原始 PNG 仅作为高画质源文件保留。
+如果修改了 `data/*.json`、`styles.css` 或 `src/*.js`，先运行一次 `npm run build`，它会把最新数据、样式和运行代码写入 `index.html`，保证双击入口和 GitHub Pages 使用同一份内容。默认使用约 243 KB 的移动端清晰 WebP 图集，首屏先用轻量几何/文字占位，纹理失败也不会卡在加载画面；约 112 KB 的低清 WebP 可作为极慢网络备用，原始 PNG 仅作为高画质源文件保留。
 
 提交整个项目目录到 GitHub 后，在仓库的 `Settings → Pages` 中选择目标分支和根目录，即可通过 `https://<用户名>.github.io/<仓库名>/` 打开游戏。GitHub 的 `github.com/.../blob/.../index.html` 文件预览页不会执行网页，需要使用 GitHub Pages 地址。
 
@@ -52,14 +52,15 @@ npm run start
 - `src/main.js`：输入、场景切换、UI、音效反馈和主循环。
 - `data/units.json`：单位数值与技能数据源。
 - `data/levels.json`：关卡预算、敌方编队和提示。
-- `assets/units-handdrawn-atlas-low.webp`：4 × 4 低清手绘角色图集，默认异步加载，约 112 KB。
-- `assets/units-handdrawn-atlas.png`：4 × 4 原始高清手绘角色图集，作为高画质源文件和索引参考；`file://` 入口当前使用低清 WebP 做 DOM 美术回退；索引说明见 `assets/ASSET_NOTES.md`。
+- `assets/units-handdrawn-atlas-mobile.webp`：4 × 4 移动端清晰手绘角色图集，默认异步加载，约 243 KB。
+- `assets/units-handdrawn-atlas-low.webp`：4 × 4 极限低清备用图集，约 112 KB；索引说明见 `assets/ASSET_NOTES.md`。
+- `assets/units-handdrawn-atlas.png`：4 × 4 原始高清手绘角色图集，作为高画质源文件和索引参考；`file://` 入口使用默认移动 WebP 做 DOM 美术回退。
 - `manifest.webmanifest`：安装到手机主屏时声明全屏与横屏方向。
 - `scripts/check-data.mjs`：无依赖数据与语法检查。
 - `scripts/check-balance.mjs`：固定种子基准编队烟测，确保每关可在预算内完整清场。
-- `scripts/build-static.mjs`：将数据、样式和运行代码构建进 `index.html`，并写入图集的低优先级相对路径；同时检查静态入口是否过期。
+- `scripts/build-static.mjs`：将数据、样式和运行代码构建进 `index.html`，并写入移动图集的低优先级相对路径；同时检查静态入口是否过期。
 - `scripts/check-static-runtime.mjs`：防止可选纹理再次阻塞静态入口启动。
 - `PLAY_GAME.cmd`：Windows 双击启动入口。
 - `scripts/launch.mjs`：启动服务器、等待端口就绪并打开浏览器。
 
-这是原型阶段的可玩切片，尚未包含存档、联网、完整角色动画和商用音频；移动端当前以横屏战场、统一触控控件、触控拖拽和低首屏负载为主要适配目标。`index.html` 是可直接双击运行、也可直接部署到 GitHub Pages 的静态入口；完整仓库需同时提交 `assets/units-handdrawn-atlas-low.webp` 和 `manifest.webmanifest`，高清 PNG 可选。
+这是原型阶段的可玩切片，尚未包含存档、联网、完整角色动画和商用音频；移动端当前以横屏战场、统一触控控件、触控拖拽、卡栏滚动和低首屏负载为主要适配目标。`index.html` 是可直接双击运行、也可直接部署到 GitHub Pages 的静态入口；完整仓库需同时提交 `assets/units-handdrawn-atlas-mobile.webp` 和 `manifest.webmanifest`，高清 PNG 与极限低清 WebP 可选。

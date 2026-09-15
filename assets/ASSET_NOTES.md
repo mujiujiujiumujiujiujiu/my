@@ -2,7 +2,9 @@
 
 `units-handdrawn-atlas.png` 是本项目生成的原创水彩墨线角色图集，不直接打包网络搜索结果或真人照片。
 
-`units-handdrawn-atlas-low.webp` 是同一图集的移动端/默认低清版本，尺寸约为原图 50%，用于降低 GitHub Pages 与手机端的首屏请求；两份图集使用相同的 4 × 4 索引。
+`units-handdrawn-atlas-mobile.webp` 是同一图集的移动端默认版本，尺寸约为原图 75%、约 243 KB，在降低请求体的同时保留战场角色边缘细节。
+
+`units-handdrawn-atlas-low.webp` 是更激进的约 50% / 112 KB 轻量版本，可作为极慢网络的备用资产；所有图集使用相同的 4 × 4 索引。
 
 ## 图集规格
 

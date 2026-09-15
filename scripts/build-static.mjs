@@ -44,7 +44,7 @@ for (const [start, end, label] of [
 }
 
 const embeddedStyle = `<style data-meme-war-static-source>${escapeInlineStyle(stylesCss)}</style>`;
-const embeddedTexture = `<script>window.MEME_WAR_TEXTURE_URL = './assets/units-handdrawn-atlas-low.webp';</script>`;
+const embeddedTexture = `<script>window.MEME_WAR_TEXTURE_URL = './assets/units-handdrawn-atlas-mobile.webp';</script>`;
 const embeddedRuntime = [
   embeddedTexture,
   `<script>${escapeInlineScript(simSource)}</script>`,

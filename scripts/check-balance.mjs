@@ -40,12 +40,28 @@ function run(level, ids) {
   const simulation = new window.MemeWarSim.BattleSimulation(unitsById, level, deployments);
   simulation.start();
   let ticks = 0;
-  while (simulation.phase === 'battle' && ticks < 1800) {
+  while (simulation.phase === 'battle' && ticks < 2500) {
     simulation.update(0.05);
+    assertNoOverlaps(simulation, `关卡 ${level.id}`);
     ticks += 1;
   }
   const clear = simulation.outcome === 'win' && simulation.enemyCount === 0;
   return { clear, time: Number(simulation.time.toFixed(1)), spent, players: simulation.playerCount, enemies: simulation.enemyCount };
+}
+
+function assertNoOverlaps(simulation, label) {
+  const alive = simulation.aliveUnits;
+  for (let firstIndex = 0; firstIndex < alive.length; firstIndex += 1) {
+    for (let secondIndex = firstIndex + 1; secondIndex < alive.length; secondIndex += 1) {
+      const first = alive[firstIndex];
+      const second = alive[secondIndex];
+      const actual = Math.hypot(first.x - second.x, first.y - second.y);
+      const minimum = simulation.getSeparationRadius(first) + simulation.getSeparationRadius(second);
+      if (actual + 0.05 < minimum) {
+        throw new Error(`${label} 角色重叠：${first.data.id}/${second.data.id} ${actual.toFixed(2)} < ${minimum.toFixed(2)}`);
+      }
+    }
+  }
 }
 
 for (const level of levels) {

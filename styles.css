@@ -199,8 +199,10 @@ html.is-virtual-landscape #orientationGate { display: none !important; }
 .dock-meta #deployedCount { color: var(--teal); font-family: ui-monospace, monospace; font-weight: 900; }
 .divider { display: inline-block; width: 1px; height: 11px; margin: 0 8px -2px; background: var(--line); }
 .unit-list { display: flex; min-width: 0; gap: 8px; height: 82px; overflow-x: auto; padding: 1px 0 4px; scrollbar-color: #234252 transparent; }
-.unit-list { overscroll-behavior-x: contain; touch-action: pan-x; }
+.unit-list { overscroll-behavior-x: contain; overscroll-behavior-y: contain; touch-action: pan-x; }
 .unit-card { position: relative; flex: 0 0 116px; height: 78px; display: flex; flex-direction: column; justify-content: space-between; padding: 6px 8px 5px; border: 1px solid rgba(151, 192, 193, .16); border-radius: var(--radius-control); cursor: grab; user-select: none; -webkit-user-drag: none; touch-action: pan-x; background: linear-gradient(145deg, rgba(18, 42, 55, .86), rgba(9, 23, 37, .88)); transition: transform .14s ease, border-color .14s ease, background .14s ease; }
+html.is-virtual-landscape .unit-list,
+html.is-virtual-landscape .unit-card { touch-action: none; }
 .unit-card:hover { transform: translateY(-3px); border-color: rgba(99, 224, 203, .55); }
 .unit-card.selected { border-color: var(--teal); background: linear-gradient(145deg, rgba(21, 68, 72, .95), rgba(9, 31, 42, .95)); box-shadow: 0 0 0 1px rgba(99, 224, 203, .18), 0 8px 22px rgba(0, 0, 0, .23); }
 .unit-card.disabled { opacity: .38; filter: saturate(.4); cursor: not-allowed; }

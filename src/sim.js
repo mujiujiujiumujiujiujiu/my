@@ -1,5 +1,7 @@
 (function () {
 const WORLD = { width: 1600, height: 820, minX: 42, maxX: 1558, minY: 42, maxY: 778 };
+const COLLISION_GAP = 6;
+const COLLISION_ITERATIONS = 24;
 
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 const distance = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
@@ -101,7 +103,7 @@ class BattleSimulation {
       this.finish('lose');
     } else if (this.enemyCount === 0) {
       if (!this.advanceWave()) this.finish('win');
-    } else if (this.time > 90) {
+    } else if (this.time > 120) {
       const playerScore = this.alivePlayers.reduce((sum, unit) => sum + unit.hp, 0);
       const enemyScore = this.aliveEnemies.reduce((sum, unit) => sum + unit.hp, 0);
       this.finish(playerScore >= enemyScore ? 'win' : 'lose', true);
@@ -126,6 +128,7 @@ class BattleSimulation {
 
   spawnWave(entries) {
     this.buildEnemyUnits(entries);
+    this.resolveCollisions(this.aliveUnits);
     const count = entries.reduce((sum, entry) => sum + entry.count, 0);
     this.addEffect('waveSpawn', 1280, WORLD.height / 2, '#ff796a', 240, 1.25, {
       label: `第 ${this.waveIndex + 1} 波入场`,
@@ -257,7 +260,9 @@ class BattleSimulation {
     const dx = target.x - unit.x;
     const dy = target.y - unit.y;
     const distanceToTarget = Math.hypot(dx, dy);
-    const attackRange = unit.data.range + unit.data.radius * 0.35 + target.data.radius * 0.35;
+    const configuredAttackRange = unit.data.range + unit.data.radius * 0.35 + target.data.radius * 0.35;
+    const visibleContactRange = this.getSeparationRadius(unit) + this.getSeparationRadius(target) + COLLISION_GAP;
+    const attackRange = unit.data.range > 100 ? configuredAttackRange : Math.max(configuredAttackRange, visibleContactRange);
     const direction = normalize(dx, dy);
     unit.facing = Math.atan2(dy, dx);
     const keepDistance = this.shouldKeepDistance(unit);
@@ -745,32 +750,49 @@ class BattleSimulation {
   }
 
   resolveCollisions(alive) {
-    for (let firstIndex = 0; firstIndex < alive.length; firstIndex += 1) {
-      const first = alive[firstIndex];
-      for (let secondIndex = firstIndex + 1; secondIndex < alive.length; secondIndex += 1) {
-        const second = alive[secondIndex];
-        const dx = second.x - first.x;
-        const dy = second.y - first.y;
-        const length = Math.hypot(dx, dy) || 0.01;
-        const minimum = (first.data.radius + second.data.radius) * 0.68;
-        if (length >= minimum) continue;
-        const direction = { x: dx / length, y: dy / length };
-        const correction = (minimum - length) * 0.5;
-        first.x -= direction.x * correction;
-        first.y -= direction.y * correction;
-        second.x += direction.x * correction;
-        second.y += direction.y * correction;
-        first.vx -= direction.x * 4;
-        first.vy -= direction.y * 4;
-        second.vx += direction.x * 4;
-        second.vy += direction.y * 4;
+    const active = alive.filter((unit) => unit.alive && unit.data);
+    for (let iteration = 0; iteration < COLLISION_ITERATIONS; iteration += 1) {
+      let changed = false;
+      for (let firstIndex = 0; firstIndex < active.length; firstIndex += 1) {
+        const first = active[firstIndex];
+        for (let secondIndex = firstIndex + 1; secondIndex < active.length; secondIndex += 1) {
+          const second = active[secondIndex];
+          const dx = second.x - first.x;
+          const dy = second.y - first.y;
+          const length = Math.hypot(dx, dy);
+          const minimum = this.getMinimumSeparation(first, second);
+          if (length >= minimum) continue;
+          const direction = length > 0.001 ? { x: dx / length, y: dy / length } : { x: 1, y: 0 };
+          const correction = (minimum - length) * 0.5;
+          first.x -= direction.x * correction;
+          first.y -= direction.y * correction;
+          second.x += direction.x * correction;
+          second.y += direction.y * correction;
+          if (iteration === 0) {
+            first.vx -= direction.x * 1.4;
+            first.vy -= direction.y * 1.4;
+            second.vx += direction.x * 1.4;
+            second.vy += direction.y * 1.4;
+          }
+          changed = true;
+        }
       }
+      for (const unit of active) this.keepInside(unit);
+      if (!changed) break;
     }
-    for (const unit of alive) this.keepInside(unit);
+    for (const unit of active) this.keepInside(unit);
+  }
+
+  getSeparationRadius(unit) {
+    return Math.max((Number(unit?.data?.radius) || 0) * 1.5, 35);
+  }
+
+  getMinimumSeparation(first, second) {
+    return this.getSeparationRadius(first) + this.getSeparationRadius(second) + COLLISION_GAP;
   }
 
   keepInside(unit) {
-    const padding = unit.data.radius * 0.6;
+    const padding = this.getSeparationRadius(unit);
     if (unit.x < WORLD.minX + padding) { unit.x = WORLD.minX + padding; unit.vx = Math.abs(unit.vx) * 0.45; }
     if (unit.x > WORLD.maxX - padding) { unit.x = WORLD.maxX - padding; unit.vx = -Math.abs(unit.vx) * 0.45; }
     if (unit.y < WORLD.minY + padding) { unit.y = WORLD.minY + padding; unit.vy = Math.abs(unit.vy) * 0.45; }
