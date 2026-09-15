@@ -34,8 +34,9 @@ button { color: inherit; }
 #app {
   width: 100%;
   height: 100%;
+  min-width: 0;
   display: grid;
-  grid-template-rows: 72px minmax(0, 1fr) 170px;
+  grid-template-rows: 64px minmax(0, 1fr) 138px;
   background:
     radial-gradient(circle at 18% 12%, rgba(39, 96, 105, 0.22), transparent 32%),
     radial-gradient(circle at 88% 78%, rgba(75, 42, 57, 0.2), transparent 31%),
@@ -44,6 +45,7 @@ button { color: inherit; }
 
 #topbar {
   display: flex;
+  min-width: 0;
   align-items: center;
   gap: 26px;
   padding: 0 24px;
@@ -87,11 +89,11 @@ button { color: inherit; }
 .button-primary { border-color: #5edac5; color: #06151b; background: var(--teal); box-shadow: 0 8px 22px rgba(99, 224, 203, .13); }
 .button-ghost { color: #b9ccd1; background: rgba(16, 36, 55, .7); }
 .hidden { display: none !important; }
-#app.phase-battle, #app.phase-result { grid-template-rows: 72px minmax(0, 1fr) 0; }
+#app.phase-battle, #app.phase-result { grid-template-rows: 64px minmax(0, 1fr) 0; }
 #app.phase-battle #unitDock, #app.phase-result #unitDock { display: none; }
 
-#playArea { min-height: 0; position: relative; }
-#battlefieldShell { position: absolute; inset: 0 356px 0 0; overflow: hidden; }
+#playArea { min-width: 0; min-height: 0; position: relative; }
+#battlefieldShell { position: absolute; inset: 0 280px 0 0; overflow: hidden; }
 #gameCanvas { display: block; width: 100%; height: 100%; cursor: grab; touch-action: none; }
 #gameCanvas.is-dragging { cursor: grabbing; }
 #worldLabels { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
@@ -115,7 +117,7 @@ button { color: inherit; }
 .webgl-fallback span { color: var(--muted); font-size: 12px; }
 
 #sidePanel {
-  position: absolute; inset: 0 0 0 auto; width: 356px; padding: 27px 24px 18px;
+  position: absolute; inset: 0 0 0 auto; width: 280px; padding: 22px 18px 15px;
   border-left: 1px solid var(--line); background: rgba(6, 17, 29, .91); overflow: auto; z-index: 3;
 }
 .panel-heading { display: flex; justify-content: space-between; gap: 12px; }
@@ -155,23 +157,28 @@ button { color: inherit; }
 .speed-button.active { color: #06151b; border-color: var(--gold); background: var(--gold); }
 .control-note { margin-top: 9px; color: #607780; font-size: 10px; line-height: 1.5; }
 
-#unitDock { position: relative; z-index: 4; min-height: 0; padding: 13px 24px 15px; border-top: 1px solid var(--line); background: rgba(5, 15, 25, .96); }
-.dock-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+#unitDock { position: relative; z-index: 4; min-width: 0; min-height: 0; overflow: hidden; padding: 10px 24px 0; border-top: 1px solid var(--line); background: rgba(5, 15, 25, .96); }
+.dock-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 5px; }
 .dock-header strong { display: block; margin-top: 4px; color: #cfe1e0; font-size: 12px; }
 .dock-meta { color: #799198; font-size: 10px; }
 .dock-meta #deployedCount { color: var(--teal); font-family: ui-monospace, monospace; font-weight: 900; }
 .divider { display: inline-block; width: 1px; height: 11px; margin: 0 8px -2px; background: var(--line); }
-.unit-list { display: flex; gap: 8px; height: 103px; overflow-x: auto; padding: 1px 0 5px; scrollbar-color: #234252 transparent; }
-.unit-card { position: relative; flex: 0 0 116px; display: flex; flex-direction: column; justify-content: space-between; padding: 9px 9px 8px; border: 1px solid rgba(151, 192, 193, .16); border-radius: 8px; cursor: pointer; background: linear-gradient(145deg, rgba(18, 42, 55, .86), rgba(9, 23, 37, .88)); transition: transform .14s ease, border-color .14s ease, background .14s ease; }
+.unit-list { display: flex; min-width: 0; gap: 8px; height: 82px; overflow-x: auto; padding: 1px 0 4px; scrollbar-color: #234252 transparent; }
+.unit-list { overscroll-behavior-x: contain; touch-action: pan-x; }
+.unit-card { position: relative; flex: 0 0 116px; height: 78px; display: flex; flex-direction: column; justify-content: space-between; padding: 6px 8px 5px; border: 1px solid rgba(151, 192, 193, .16); border-radius: 8px; cursor: grab; user-select: none; -webkit-user-drag: none; touch-action: pan-x; background: linear-gradient(145deg, rgba(18, 42, 55, .86), rgba(9, 23, 37, .88)); transition: transform .14s ease, border-color .14s ease, background .14s ease; }
 .unit-card:hover { transform: translateY(-3px); border-color: rgba(99, 224, 203, .55); }
 .unit-card.selected { border-color: var(--teal); background: linear-gradient(145deg, rgba(21, 68, 72, .95), rgba(9, 31, 42, .95)); box-shadow: 0 0 0 1px rgba(99, 224, 203, .18), 0 8px 22px rgba(0, 0, 0, .23); }
 .unit-card.disabled { opacity: .38; filter: saturate(.4); cursor: not-allowed; }
+.unit-card.drop-target { border-color: var(--gold); box-shadow: 0 0 0 2px rgba(244, 198, 106, .24), 0 8px 22px rgba(0, 0, 0, .23); transform: translateY(-3px); }
+#app.is-dragging-unit #gameCanvas { cursor: copy; }
+#app.is-dragging-unit .unit-card.selected { opacity: .72; }
+#app.is-dragging-deployment .unit-list.is-drop-target { padding: 0 5px 5px; outline: 2px dashed rgba(244, 198, 106, .78); outline-offset: -2px; background: rgba(244, 198, 106, .08); }
 .card-top { display: flex; align-items: center; justify-content: space-between; gap: 5px; }
-.unit-glyph { width: 32px; height: 32px; flex: 0 0 32px; display: grid; place-items: center; overflow: hidden; border: 1px solid rgba(255, 255, 255, .18); border-radius: 9px; color: #07121a; font-weight: 950; font-size: 12px; background-repeat: no-repeat; box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .12); }
+.unit-glyph { width: 30px; height: 30px; flex: 0 0 30px; display: grid; place-items: center; overflow: hidden; border: 1px solid rgba(255, 255, 255, .18); border-radius: 9px; color: #07121a; font-weight: 950; font-size: 12px; background-repeat: no-repeat; box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .12); }
 .unit-price { color: var(--gold); font-family: ui-monospace, monospace; font-size: 11px; font-weight: 900; }
-.unit-name { margin-top: 8px; font-size: 13px; font-weight: 900; }
-.unit-role { margin-top: 2px; color: #88a2a8; font-size: 9px; }
-.unit-stats { display: flex; justify-content: space-between; margin-top: 7px; color: #9cb6ba; font-family: ui-monospace, monospace; font-size: 9px; }
+.unit-name { margin-top: 3px; font-size: 12px; line-height: 1.1; font-weight: 900; }
+.unit-role { margin-top: 1px; color: #88a2a8; font-size: 8px; line-height: 1.1; }
+.unit-stats { display: flex; justify-content: space-between; margin-top: 3px; color: #9cb6ba; font-family: ui-monospace, monospace; font-size: 8px; line-height: 1.1; }
 .unit-stats b { color: #d7e8e7; }
 .selected-mark { position: absolute; top: 6px; right: 7px; color: var(--teal); font-size: 10px; }
 
@@ -210,14 +217,15 @@ button { color: inherit; }
 
 @media (max-width: 780px) {
   html, body { overflow: auto; }
-  #app { min-height: 100dvh; height: auto; grid-template-rows: 66px 590px auto; }
-  #topbar { flex-wrap: wrap; height: auto; min-height: 66px; padding-block: 10px; }
+  #app { min-height: 100dvh; height: auto; grid-template-rows: auto minmax(460px, 1fr) auto; }
+  #app.phase-battle, #app.phase-result { grid-template-rows: auto minmax(0, 1fr) 0; }
+  #topbar { flex-wrap: wrap; height: auto; min-height: 66px; padding: max(10px, env(safe-area-inset-top)) max(15px, env(safe-area-inset-right)) 10px max(15px, env(safe-area-inset-left)); }
   .brand-lockup { flex: 1 1 auto; min-width: 190px; }
   .phase-stat, .budget-stat { display: none; }
   .level-picker { margin-left: 0; }
   .level-picker select { min-width: 110px; }
   .top-actions { margin-left: auto; }
-  #playArea { min-height: 590px; }
+  #playArea { min-height: 460px; }
   #battlefieldShell { inset: 0 0 0 0; }
   #sidePanel { inset: auto 0 0; width: 100%; height: 168px; padding: 12px 15px; display: grid; grid-template-columns: 1.3fr 1fr 1fr; gap: 14px; overflow: hidden; background: rgba(6, 17, 29, .93); }
   .panel-heading { display: block; }
@@ -228,19 +236,27 @@ button { color: inherit; }
   .panel-section { padding: 0; }
   .controls-section { display: none; }
   .event-log { max-height: 106px; }
-  #unitDock { padding-inline: 15px; }
+  #unitDock { padding: 12px max(15px, env(safe-area-inset-right)) max(15px, env(safe-area-inset-bottom)) max(15px, env(safe-area-inset-left)); }
+  .dock-header { align-items: flex-start; }
+  .dock-header strong { max-width: 78vw; font-size: 13px; line-height: 1.35; }
+  .unit-list { height: 116px; gap: 10px; padding-bottom: 8px; }
+  .unit-card { flex-basis: 122px; min-height: 108px; padding: 10px; }
+  .unit-name { font-size: 14px; }
+  .unit-role { font-size: 10px; }
+  .unit-stats { font-size: 10px; }
+  .button, .level-picker select, .speed-button { min-height: 44px; }
   .dock-meta { display: none; }
   .toast { bottom: 186px; }
 }
 
 @media (max-width: 520px) {
-  #app { grid-template-rows: 66px 560px auto; }
-  #playArea { min-height: 560px; }
-  #sidePanel { height: 151px; grid-template-columns: 1fr 1fr; }
+  #app { grid-template-rows: auto minmax(420px, 1fr) auto; }
+  #playArea { min-height: 420px; }
+  #sidePanel { height: 138px; grid-template-columns: 1fr 1fr; }
   .panel-section { display: none; }
   .panel-heading h1 { font-size: 17px; }
   .tip-card { margin-top: 13px; }
-  .floating-guide { left: 12px; bottom: 164px; max-width: calc(100% - 24px); }
+  .floating-guide { left: 12px; bottom: 151px; max-width: calc(100% - 24px); font-size: 11px; }
   .camera-hint { display: none; }
   #topbar { gap: 8px; }
   .brand-title { font-size: 13px; }
@@ -248,7 +264,65 @@ button { color: inherit; }
   .brand-mark { width: 32px; height: 32px; font-size: 17px; }
   .level-picker select { min-width: 92px; font-size: 10px; }
   .top-actions .button { padding: 8px 8px; font-size: 10px; }
-  .unit-card { flex-basis: 108px; }
+  .unit-list { height: 112px; }
+  .unit-card { flex-basis: 116px; min-height: 104px; }
+}
+
+/* 手机横屏：保留战场主视图，把说明栏压缩到右侧，卡栏固定在底部。 */
+@media (max-width: 900px) and (orientation: landscape) {
+  html, body { width: 100%; height: 100%; overflow: hidden; }
+  #app { min-height: 100dvh; height: 100dvh; grid-template-rows: 58px minmax(0, 1fr) 124px; }
+  #app.phase-battle, #app.phase-result { grid-template-rows: 58px minmax(0, 1fr) 0; }
+  #topbar {
+    flex-wrap: nowrap; min-height: 58px; height: 58px; gap: 10px;
+    padding: max(7px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) 7px max(12px, env(safe-area-inset-left));
+  }
+  .brand-lockup { min-width: 170px; gap: 8px; }
+  .brand-mark { width: 32px; height: 32px; border-radius: 9px; font-size: 17px; }
+  .brand-title { font-size: 13px; }
+  .brand-subtitle { font-size: 7px; }
+  .phase-stat, .budget-stat { display: none; }
+  .level-picker { margin-left: auto; }
+  .level-picker select { min-width: 112px; min-height: 40px; padding-block: 5px; font-size: 11px; }
+  .top-actions { gap: 6px; }
+  .top-actions .button { min-height: 40px; padding: 7px 10px; font-size: 11px; }
+
+  #playArea { min-height: 0; }
+  #battlefieldShell { inset: 0 236px 0 0; }
+  #sidePanel {
+    inset: 0 0 0 auto; width: 236px; padding: 12px 12px 9px; overflow: hidden;
+  }
+  .panel-heading { display: block; }
+  .panel-heading h1 { margin: 4px 0 2px; font-size: 18px; }
+  .panel-heading p { font-size: 10px; }
+  .level-number { display: none; }
+  .tip-card { gap: 6px; margin: 9px 0 10px; padding: 7px 8px; }
+  .tip-icon { font-size: 12px; }
+  .tip-card p { font-size: 10px; line-height: 1.35; }
+  .battle-readout { padding: 7px 0 9px; }
+  .faction-row { gap: 3px; margin: 8px 0 7px; }
+  .faction { gap: 4px; font-size: 10px; }
+  .faction strong { font-size: 15px; }
+  .panel-section { padding-top: 9px; }
+  .event-log { min-height: 0; max-height: 54px; margin-top: 5px; }
+  .event { padding: 3px 0; font-size: 9px; }
+  .controls-section { display: none; }
+
+  #unitDock { height: 124px; padding: 6px max(12px, env(safe-area-inset-right)) 0 max(12px, env(safe-area-inset-left)); }
+  .dock-header { margin-bottom: 5px; }
+  .dock-header strong { max-width: 70vw; margin-top: 2px; font-size: 11px; line-height: 1.2; }
+  .dock-meta { display: block; font-size: 9px; }
+  .unit-list { height: 76px; gap: 7px; padding: 0; }
+  .unit-card { flex-basis: 104px; height: 76px; min-height: 0; padding: 7px; border-radius: 7px; }
+  .unit-glyph { width: 26px; height: 26px; flex-basis: 26px; border-radius: 7px; }
+  .unit-price { font-size: 10px; }
+  .unit-name { margin-top: 4px; font-size: 12px; }
+  .unit-role { margin-top: 1px; font-size: 8px; }
+  .unit-stats { margin-top: 4px; font-size: 8px; }
+  .selected-mark { top: 4px; right: 5px; font-size: 9px; }
+  .floating-guide { left: 10px; bottom: 10px; padding: 6px 8px; font-size: 9px; }
+  .camera-hint { right: 10px; bottom: 10px; padding: 6px 8px; font-size: 9px; }
+  .toast { bottom: 130px; font-size: 10px; }
 }
 </style>
     <!-- MEME_WAR_STATIC_STYLE_END -->
@@ -293,7 +367,7 @@ button { color: inherit; }
 
           <div id="prepGuide" class="floating-guide">
             <span class="guide-dot"></span>
-            点击左半场部署单位 · 右键撤回 · 拖拽调整站位
+            拖兵种卡到左半场部署 · 拖回卡片撤销并退款
           </div>
           <div id="battleGuide" class="floating-guide hidden">
             <span class="guide-dot guide-dot-battle"></span>
@@ -352,7 +426,7 @@ button { color: inherit; }
         <div class="dock-header">
           <div>
             <span class="eyebrow">UNIT MARKET</span>
-            <strong>选择单位并放入左侧部署区 · 开战后自动推进多波</strong>
+            <strong>拖卡到左侧部署 · 拖回兵种卡撤销并退款</strong>
           </div>
           <div class="dock-meta"><span id="deployedCount">0</span> / 24 已部署 <span class="divider"></span> 右键可退款</div>
         </div>
@@ -1537,6 +1611,10 @@ class MemeWarApp {
     this.nextDeploymentId = 1;
     this.selectedUnitId = null;
     this.draggedDeployment = null;
+    this.cardPointer = null;
+    this.draggedUnit = null;
+    this.suppressCardClick = false;
+    this.suppressCardClickTimer = null;
     this.hoverWorld = null;
     this.cameraDrag = null;
     this.slowInput = false;
@@ -1614,7 +1692,12 @@ class MemeWarApp {
       this.showToast('手绘角色纹理加载失败，将使用几何占位。');
     });
 
-    window.addEventListener('resize', () => this.renderer?.resize());
+    window.addEventListener('resize', () => {
+      if (!this.renderer) return;
+      this.renderer.resize();
+      this.fitCamera();
+      this.render();
+    });
     this.elements.loading.classList.add('hidden');
     this.logEvent({ text: '战场加载完成。挑一张卡，然后把它放进左半场。', tone: 'info' });
     this.syncUi();
@@ -1639,7 +1722,7 @@ class MemeWarApp {
       const card = makeElement('button', 'unit-card');
       card.type = 'button';
       card.dataset.unitId = unit.id;
-      card.setAttribute('aria-label', `${unit.name}，${unit.price} 金，${unit.roleLabel}`);
+      card.setAttribute('aria-label', `${unit.name}，${unit.price} 金，${unit.roleLabel}，可拖到左侧战场部署`);
 
       const top = makeElement('div', 'card-top');
       const glyph = makeElement('span', 'unit-glyph', unit.name.slice(0, 1));
@@ -1663,7 +1746,15 @@ class MemeWarApp {
       const atk = makeElement('b', '', unit.role === 'deployable' ? '路障' : `⚔ ${unit.atk}`);
       stats.append(hp, atk);
       card.append(top, name, role, stats);
-      card.addEventListener('click', () => this.selectUnit(unit.id));
+      card.addEventListener('pointerdown', (event) => this.onUnitCardPointerDown(event, unit.id));
+      card.addEventListener('click', () => {
+        if (this.suppressCardClick) {
+          this.suppressCardClick = false;
+          window.clearTimeout(this.suppressCardClickTimer);
+          return;
+        }
+        this.selectUnit(unit.id);
+      });
       this.elements.unitList.append(card);
     }
     this.updateUnitCards();
@@ -1701,6 +1792,9 @@ class MemeWarApp {
     this.canvas.addEventListener('pointerup', (event) => this.onPointerUp(event));
     this.canvas.addEventListener('pointercancel', (event) => this.onPointerUp(event));
     this.canvas.addEventListener('wheel', (event) => this.onWheel(event), { passive: false });
+    window.addEventListener('pointermove', (event) => this.onGlobalPointerMove(event));
+    window.addEventListener('pointerup', (event) => this.onGlobalPointerUp(event));
+    window.addEventListener('pointercancel', (event) => this.onGlobalPointerUp(event));
 
     window.addEventListener('keydown', (event) => {
       if (event.code === 'Space') {
@@ -1717,6 +1811,10 @@ class MemeWarApp {
     window.addEventListener('blur', () => {
       this.slowInput = false;
       this.cameraDrag = null;
+      this.cardPointer = null;
+      this.finishUnitCardDrag();
+      this.elements.app.classList.remove('is-dragging-deployment');
+      this.updateDragDropUi();
     });
     window.addEventListener('pointerdown', () => this.audio.unlock(), { once: true });
   }
@@ -1730,6 +1828,11 @@ class MemeWarApp {
     this.nextDeploymentId = 1;
     this.selectedUnitId = null;
     this.draggedDeployment = null;
+    this.cardPointer = null;
+    this.draggedUnit = null;
+    this.suppressCardClick = false;
+    window.clearTimeout(this.suppressCardClickTimer);
+    this.suppressCardClickTimer = null;
     this.cameraDrag = null;
     this.hoverWorld = null;
     this.simulation = null;
@@ -1739,6 +1842,8 @@ class MemeWarApp {
     this.fitCamera();
     this.elements.app.classList.remove('phase-battle', 'phase-result');
     this.elements.app.classList.add('phase-prep');
+    this.elements.app.classList.remove('is-dragging-unit', 'drag-valid', 'is-dragging-deployment');
+    this.updateDragDropUi();
     this.elements.resultOverlay.classList.add('hidden');
     this.elements.levelSelect.value = String(this.levelIndex);
     this.elements.eventLog.replaceChildren();
@@ -1810,7 +1915,14 @@ class MemeWarApp {
     this.phase = 'battle';
     this.paused = false;
     this.selectedUnitId = null;
+    this.cardPointer = null;
+    this.draggedUnit = null;
     this.draggedDeployment = null;
+    this.suppressCardClick = false;
+    window.clearTimeout(this.suppressCardClickTimer);
+    this.suppressCardClickTimer = null;
+    this.elements.app.classList.remove('is-dragging-unit', 'drag-valid', 'is-dragging-deployment');
+    this.updateDragDropUi();
     this.simulation = new BattleSimulation(this.unitsById, this.level, this.deployments, (event) => this.logEvent(event));
     this.simulation.start();
     this.elements.app.classList.remove('phase-prep');
@@ -1835,14 +1947,104 @@ class MemeWarApp {
     this.syncUi();
   }
 
+  onUnitCardPointerDown(event, unitId) {
+    if (this.phase !== 'prep' || event.button !== 0) return;
+    const unit = this.unitsById[unitId];
+    if (!unit || this.budgetRemaining < unit.price) return;
+    this.cardPointer = {
+      unitId,
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+    };
+  }
+
+  onGlobalPointerMove(event) {
+    if (this.cardPointer?.pointerId !== event.pointerId && this.draggedUnit?.pointerId !== event.pointerId) return;
+    if (this.phase !== 'prep') {
+      this.cardPointer = null;
+      this.finishUnitCardDrag();
+      return;
+    }
+
+    if (!this.draggedUnit) {
+      const dx = event.clientX - this.cardPointer.startX;
+      const dy = event.clientY - this.cardPointer.startY;
+      if (Math.hypot(dx, dy) < 10) return;
+      if (event.pointerType === 'touch' && Math.abs(dx) > Math.abs(dy)) return;
+      const unit = this.unitsById[this.cardPointer.unitId];
+      if (!unit || this.budgetRemaining < unit.price) {
+        this.cardPointer = null;
+        return;
+      }
+      this.draggedUnit = { ...this.cardPointer };
+      this.cardPointer = null;
+      this.selectedUnitId = unit.id;
+      this.suppressCardClick = true;
+      window.clearTimeout(this.suppressCardClickTimer);
+      this.suppressCardClickTimer = window.setTimeout(() => {
+        this.suppressCardClick = false;
+      }, 700);
+      this.elements.app.classList.add('is-dragging-unit');
+      this.audio.unlock();
+    }
+
+    if (this.draggedUnit.pointerId !== event.pointerId) return;
+    event.preventDefault();
+    if (this.isPointInside(this.canvas, event)) {
+      this.hoverWorld = this.pointerToWorld(event);
+      this.elements.app.classList.toggle('drag-valid', this.isValidPlacement(this.hoverWorld.x, this.hoverWorld.y, this.unitsById[this.draggedUnit.unitId]));
+    } else {
+      this.hoverWorld = null;
+      this.elements.app.classList.remove('drag-valid');
+    }
+  }
+
+  onGlobalPointerUp(event) {
+    if (this.cardPointer?.pointerId === event.pointerId) {
+      this.cardPointer = null;
+      return;
+    }
+    if (this.draggedUnit?.pointerId !== event.pointerId) return;
+
+    const unitId = this.draggedUnit.unitId;
+    const overCanvas = this.isPointInside(this.canvas, event);
+    if (overCanvas) {
+      const world = this.pointerToWorld(event);
+      this.selectedUnitId = unitId;
+      this.placeSelectedUnit(world.x, world.y);
+    } else {
+      this.showToast('拖到战场左侧部署区，才会买下这名单位。');
+    }
+    this.finishUnitCardDrag();
+    event.preventDefault();
+  }
+
+  finishUnitCardDrag() {
+    this.cardPointer = null;
+    this.draggedUnit = null;
+    this.hoverWorld = null;
+    this.elements.app.classList.remove('is-dragging-unit', 'drag-valid');
+    this.updateUnitCards();
+  }
+
   onPointerDown(event) {
     this.audio.unlock();
     const world = this.pointerToWorld(event);
     if (this.phase === 'prep') {
       const existing = this.findDeploymentAt(world.x, world.y);
       if (existing) {
-        this.draggedDeployment = { deployment: existing, pointerId: event.pointerId };
+        this.draggedDeployment = {
+          deployment: existing,
+          pointerId: event.pointerId,
+          originX: existing.x,
+          originY: existing.y,
+          overCard: false,
+          targetCardId: null,
+        };
         this.selectedUnitId = existing.unitId;
+        this.hoverWorld = null;
+        this.elements.app.classList.add('is-dragging-deployment');
         this.canvas.setPointerCapture?.(event.pointerId);
         this.updateUnitCards();
         return;
@@ -1865,15 +2067,21 @@ class MemeWarApp {
   }
 
   onPointerMove(event) {
-    const world = this.pointerToWorld(event);
-    this.hoverWorld = world;
     if (this.phase === 'prep' && this.draggedDeployment?.pointerId === event.pointerId) {
+      const targetCard = this.getUnitCardAtPoint(event);
+      this.draggedDeployment.overCard = Boolean(targetCard);
+      this.draggedDeployment.targetCardId = targetCard?.dataset.unitId ?? null;
+      this.updateDragDropUi();
+      if (!this.isPointInside(this.canvas, event)) return;
+      const world = this.pointerToWorld(event);
       const deployment = this.draggedDeployment.deployment;
       const data = this.unitsById[deployment.unitId];
       deployment.x = clamp(world.x, WORLD.minX + PLAYER_SAFE_MARGIN, PLAYER_ZONE_RIGHT - data.radius);
       deployment.y = clamp(world.y, WORLD.minY + PLAYER_SAFE_MARGIN, WORLD.maxY - PLAYER_SAFE_MARGIN);
       return;
     }
+    const world = this.pointerToWorld(event);
+    this.hoverWorld = world;
     if (this.cameraDrag?.pointerId === event.pointerId) {
       const dx = (event.clientX - this.cameraDrag.startX) / this.camera.zoom;
       const dy = (event.clientY - this.cameraDrag.startY) / this.camera.zoom;
@@ -1885,7 +2093,22 @@ class MemeWarApp {
 
   onPointerUp(event) {
     if (this.draggedDeployment?.pointerId === event.pointerId) {
+      const drag = this.draggedDeployment;
+      const targetCard = this.getUnitCardAtPoint(event);
+      const overCard = Boolean(targetCard || drag.overCard);
+      if (event.type === 'pointercancel') {
+        drag.deployment.x = drag.originX;
+        drag.deployment.y = drag.originY;
+      }
       this.draggedDeployment = null;
+      this.elements.app.classList.remove('is-dragging-deployment');
+      this.updateDragDropUi();
+      if (overCard && event.type !== 'pointercancel') {
+        const data = this.unitsById[drag.deployment.unitId];
+        this.removeDeployment(drag.deployment);
+        this.showToast(`${data.name} 已撤销，${data.price} 金已退回。`);
+        this.audio.blip(190, 0.06, 'square', 0.018);
+      }
       return;
     }
     if (this.cameraDrag?.pointerId === event.pointerId) {
@@ -1913,6 +2136,26 @@ class MemeWarApp {
       : { x: WORLD.width / 2, y: WORLD.height / 2 };
   }
 
+  isPointInside(element, event) {
+    if (!element || !Number.isFinite(event.clientX) || !Number.isFinite(event.clientY)) return false;
+    const rect = element.getBoundingClientRect();
+    return event.clientX >= rect.left && event.clientX <= rect.right && event.clientY >= rect.top && event.clientY <= rect.bottom;
+  }
+
+  getUnitCardAtPoint(event) {
+    if (!Number.isFinite(event.clientX) || !Number.isFinite(event.clientY)) return null;
+    const element = document.elementFromPoint(event.clientX, event.clientY);
+    return element?.closest?.('.unit-card') ?? null;
+  }
+
+  updateDragDropUi() {
+    const targetCardId = this.draggedDeployment?.targetCardId ?? null;
+    this.elements.unitList.classList.toggle('is-drop-target', Boolean(targetCardId));
+    for (const card of this.elements.unitList.children) {
+      card.classList.toggle('drop-target', Boolean(targetCardId) && card.dataset.unitId === targetCardId);
+    }
+  }
+
   clampCamera() {
     if (!this.renderer) return;
     const halfWorldWidth = this.renderer.width / (2 * this.camera.zoom);
@@ -1930,7 +2173,7 @@ class MemeWarApp {
     this.camera.x = WORLD.width / 2;
     this.camera.y = WORLD.height / 2;
     this.camera.zoom = clamp(
-      Math.min((this.renderer.width - 36) / WORLD.width, (this.renderer.height - 36) / WORLD.height),
+      Math.min((this.renderer.width - 20) / WORLD.width, (this.renderer.height - 20) / WORLD.height),
       MIN_ZOOM,
       MAX_ZOOM,
     );
