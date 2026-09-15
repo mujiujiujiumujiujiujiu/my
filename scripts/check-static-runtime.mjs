@@ -1,7 +1,15 @@
-import { readFile } from 'node:fs/promises';
+import { readFile, stat } from 'node:fs/promises';
 
 const mainSource = await readFile(new URL('../src/main.js', import.meta.url), 'utf8');
 const indexHtml = await readFile(new URL('../index.html', import.meta.url), 'utf8');
+const lowTexturePath = new URL('../assets/units-handdrawn-atlas-low.webp', import.meta.url);
+
+try {
+  const lowTexture = await stat(lowTexturePath);
+  if (!lowTexture.isFile() || lowTexture.size <= 0) throw new Error('empty file');
+} catch {
+  throw new Error('assets/units-handdrawn-atlas-low.webp: 缺少默认低清图集');
+}
 
 if (mainSource.includes("await this.renderer.loadTexture('./assets/units-handdrawn-atlas.png')")) {
   throw new Error('main.js: 可选纹理不能阻塞进入准备阶段');
@@ -27,8 +35,8 @@ if (/<script\s+src=/i.test(indexHtml)) {
 if (/<link\s+rel=["']stylesheet["']/i.test(indexHtml)) {
   throw new Error('index.html: 直接打开入口不能依赖外部样式表');
 }
-if (!indexHtml.includes('window.MEME_WAR_TEXTURE_URL')) {
-  throw new Error('index.html: 缺少可选图集路径');
+if (!indexHtml.includes("window.MEME_WAR_TEXTURE_URL = './assets/units-handdrawn-atlas-low.webp'")) {
+  throw new Error('index.html: 缺少低清图集路径');
 }
 if (!indexHtml.includes('id="worldSprites"')) {
   throw new Error('index.html: 缺少直接打开入口的角色美术回退层');

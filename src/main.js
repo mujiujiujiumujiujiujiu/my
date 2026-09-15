@@ -1,9 +1,9 @@
 const { BattleSimulation, WORLD } = window.MemeWarSim;
 const { NativeWebGLRenderer } = window.MemeWarWebGL;
 
-const UNIT_TEXTURE_URL = window.MEME_WAR_TEXTURE_URL || window.MEME_WAR_TEXTURE_DATA || './assets/units-handdrawn-atlas.png';
+const UNIT_TEXTURE_URL = window.MEME_WAR_TEXTURE_URL || window.MEME_WAR_TEXTURE_DATA || './assets/units-handdrawn-atlas-low.webp';
 const MAX_DEPLOYMENTS = 24;
-const MIN_ZOOM = 0.42;
+const MIN_ZOOM = 0.24;
 const MAX_ZOOM = 1.45;
 const PLAYER_ZONE_RIGHT = 760;
 const PLAYER_SAFE_MARGIN = 48;
