@@ -32,7 +32,8 @@ button { color: inherit; }
 button:focus-visible, select:focus-visible { outline: 2px solid var(--teal); outline-offset: 2px; box-shadow: var(--focus-ring); }
 
 .orientation-gate {
-  position: fixed; inset: 0; z-index: 40; display: none; place-items: center; padding: 24px;
+  position: fixed; inset: 0; z-index: 40; display: none; place-items: center;
+  padding: max(24px, env(safe-area-inset-top)) max(24px, env(safe-area-inset-right)) max(24px, env(safe-area-inset-bottom)) max(24px, env(safe-area-inset-left));
   color: var(--ink); background: radial-gradient(circle at 50% 35%, rgba(36, 96, 105, .34), transparent 42%), #06111c;
 }
 .orientation-card {
@@ -44,12 +45,7 @@ button:focus-visible, select:focus-visible { outline: 2px solid var(--teal); out
 .orientation-card strong { font-size: 22px; }
 .orientation-card p { margin: 0 0 4px; color: var(--muted); font-size: 12px; line-height: 1.65; }
 @keyframes orientation-spin { 0%, 100% { transform: rotate(-18deg); } 50% { transform: rotate(18deg); } }
-html.is-portrait-phone #orientationGate { display: grid; }
-html.is-portrait-phone #app { visibility: hidden; pointer-events: none; }
-@media (max-width: 900px) and (orientation: portrait) {
-  #orientationGate { display: grid; }
-  #app { visibility: hidden; pointer-events: none; }
-}
+html.is-virtual-landscape #orientationGate { display: none !important; }
 
 #app {
   width: 100%;
@@ -116,6 +112,12 @@ html.is-portrait-phone #app { visibility: hidden; pointer-events: none; }
 #battlefieldShell { position: absolute; inset: 0 280px 0 0; overflow: hidden; }
 #gameCanvas { display: block; width: 100%; height: 100%; cursor: grab; touch-action: none; }
 #gameCanvas.is-dragging { cursor: grabbing; }
+#worldSprites { position: absolute; inset: 0; z-index: 1; pointer-events: none; overflow: hidden; }
+.world-sprite {
+  position: absolute; display: block; transform: translate(-50%, -50%); pointer-events: none;
+  background-repeat: no-repeat; background-size: 400% 400%; background-color: transparent;
+  filter: drop-shadow(2px 4px 2px rgba(0, 0, 0, .38));
+}
 #worldLabels { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
 .world-label {
   position: absolute; transform: translate(-50%, -50%); white-space: nowrap;
@@ -302,7 +304,7 @@ html.is-portrait-phone #app { visibility: hidden; pointer-events: none; }
 }
 
 /* 手机横屏：保留战场主视图，把说明栏压缩到右侧，卡栏固定在底部。 */
-@media (max-width: 900px) and (orientation: landscape) {
+@media (max-width: 900px) and (orientation: landscape), (max-width: 900px) and (orientation: portrait) {
   html, body { width: 100%; height: 100%; overflow: hidden; }
   #app { min-height: 100dvh; height: 100dvh; grid-template-rows: 54px minmax(0, 1fr) 116px; }
   #app.phase-battle, #app.phase-result { grid-template-rows: 54px minmax(0, 1fr) 0; }
@@ -361,4 +363,24 @@ html.is-portrait-phone #app { visibility: hidden; pointer-events: none; }
 @media (max-width: 900px) {
   #worldLabels { contain: strict; }
   .orientation-card .button { min-height: 46px; }
+}
+
+/* 浏览器拒绝物理锁定横屏时，用长边作为游戏宽度，旋转整个游戏舞台。 */
+@media (max-width: 1024px) and (orientation: portrait) {
+  html, body { width: 100%; height: 100%; overflow: hidden; }
+  #orientationGate { display: none !important; }
+  #app {
+    position: fixed; inset: 0 auto auto 0;
+    width: 100dvh; height: 100dvw; min-width: 0; min-height: 0;
+    transform: rotate(90deg) translateY(-100%);
+    transform-origin: top left;
+  }
+}
+
+html.is-virtual-landscape #orientationGate { display: none !important; }
+html.is-virtual-landscape #app {
+  position: fixed; inset: 0 auto auto 0;
+  width: 100dvh; height: 100dvw; min-width: 0; min-height: 0;
+  transform: rotate(90deg) translateY(-100%);
+  transform-origin: top left;
 }

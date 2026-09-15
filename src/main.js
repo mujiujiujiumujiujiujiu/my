@@ -7,6 +7,7 @@ const MIN_ZOOM = 0.42;
 const MAX_ZOOM = 1.45;
 const PLAYER_ZONE_RIGHT = 760;
 const PLAYER_SAFE_MARGIN = 48;
+const IS_FILE_PROTOCOL = window.location.protocol === 'file:';
 
 const $ = (selector) => document.querySelector(selector);
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
@@ -103,6 +104,7 @@ class MemeWarApp {
     this.levels = levelsData.levels;
     this.audio = new TinyAudio();
     this.canvas = $('#gameCanvas');
+    this.worldSprites = $('#worldSprites');
     this.worldLabels = $('#worldLabels');
     this.renderer = null;
     this.simulation = null;
@@ -129,6 +131,7 @@ class MemeWarApp {
     this.resultShown = false;
     this.labelNodes = new Map();
     this.effectLabelNodes = new Map();
+    this.spriteNodes = new Map();
     this.textureLoadPromise = null;
 
     this.camera = { x: WORLD.width / 2, y: WORLD.height / 2, zoom: 0.72 };
@@ -227,7 +230,7 @@ class MemeWarApp {
     this.textureLoadPromise = this.renderer.loadTexture(UNIT_TEXTURE_URL)
       .then(() => this.syncUnitCardTextures())
       .catch(() => {
-        this.showToast('手绘角色纹理加载失败，将使用几何占位。');
+        if (!IS_FILE_PROTOCOL) this.showToast('手绘角色纹理加载失败，将使用几何占位。');
       });
     return this.textureLoadPromise;
   }
@@ -288,12 +291,13 @@ class MemeWarApp {
 
   syncUnitCardTextures() {
     const textureReady = Boolean(this.renderer?.spriteReady);
+    const textureAvailable = textureReady || IS_FILE_PROTOCOL;
     for (const card of this.elements.unitList.children) {
       const unit = this.unitsById[card.dataset.unitId];
       const glyph = card.querySelector('.unit-glyph');
       if (!unit || !glyph) continue;
       glyph.style.background = unit.color;
-      if (textureReady && Number.isInteger(unit.spriteIndex)) {
+      if (textureAvailable && Number.isInteger(unit.spriteIndex)) {
         const spriteColumn = unit.spriteIndex % 4;
         const spriteRow = Math.floor(unit.spriteIndex / 4);
         glyph.textContent = '';
@@ -530,10 +534,11 @@ class MemeWarApp {
     const { width, height } = getViewportSize();
     const isPortrait = height > width;
     const isPhoneLike = Math.min(width, height) <= 1024 && (navigator.maxTouchPoints > 0 || Boolean(window.matchMedia?.('(pointer: coarse)').matches) || Math.min(width, height) <= 600);
-    const shouldGate = isPortrait && isPhoneLike;
-    document.documentElement.classList.toggle('is-portrait-phone', shouldGate);
-    document.documentElement.dataset.orientation = isPortrait ? 'portrait' : 'landscape';
-    if (this.elements.orientationGate) this.elements.orientationGate.setAttribute('aria-hidden', String(!shouldGate));
+    const shouldVirtualize = isPortrait && isPhoneLike;
+    document.documentElement.classList.toggle('is-virtual-landscape', shouldVirtualize);
+    document.documentElement.classList.remove('is-portrait-phone');
+    document.documentElement.dataset.orientation = shouldVirtualize ? 'virtual-landscape' : 'landscape';
+    if (this.elements.orientationGate) this.elements.orientationGate.setAttribute('aria-hidden', 'true');
   }
 
   onUnitCardPointerDown(event, unitId) {
@@ -557,8 +562,13 @@ class MemeWarApp {
     }
 
     if (!this.draggedUnit) {
-      const dx = event.clientX - this.cardPointer.startX;
-      const dy = event.clientY - this.cardPointer.startY;
+      const startPoint = this.getInputPoint({
+        clientX: this.cardPointer.startX,
+        clientY: this.cardPointer.startY,
+      });
+      const currentPoint = this.getInputPoint(event);
+      const dx = currentPoint.x - startPoint.x;
+      const dy = currentPoint.y - startPoint.y;
       if (Math.hypot(dx, dy) < 10) return;
       if (event.pointerType === 'touch' && Math.abs(dx) > Math.abs(dy)) return;
       const unit = this.unitsById[this.cardPointer.unitId];
@@ -644,10 +654,11 @@ class MemeWarApp {
 
     if (this.phase === 'battle' || this.phase === 'result') {
       this.slowInput = event.button === 0 && this.phase === 'battle';
+      const point = this.getInputPoint(event);
       this.cameraDrag = {
         pointerId: event.pointerId,
-        startX: event.clientX,
-        startY: event.clientY,
+        startX: point.x,
+        startY: point.y,
         cameraX: this.camera.x,
         cameraY: this.camera.y,
       };
@@ -672,8 +683,9 @@ class MemeWarApp {
     const world = this.pointerToWorld(event);
     this.hoverWorld = world;
     if (this.cameraDrag?.pointerId === event.pointerId) {
-      const dx = (event.clientX - this.cameraDrag.startX) / this.camera.zoom;
-      const dy = (event.clientY - this.cameraDrag.startY) / this.camera.zoom;
+      const point = this.getInputPoint(event);
+      const dx = (point.x - this.cameraDrag.startX) / this.camera.zoom;
+      const dy = (point.y - this.cameraDrag.startY) / this.camera.zoom;
       this.camera.x = this.cameraDrag.cameraX - dx;
       this.camera.y = this.cameraDrag.cameraY - dy;
       this.clampCamera();
@@ -719,16 +731,46 @@ class MemeWarApp {
   }
 
   pointerToWorld(event) {
-    const rect = this.canvas.getBoundingClientRect();
+    const point = this.getInputPoint(event);
+    const rect = this.isVirtualLandscape() ? this.getLayoutRect(this.canvas) : this.canvas.getBoundingClientRect();
     return this.renderer
-      ? this.renderer.screenToWorld(event.clientX - rect.left, event.clientY - rect.top)
+      ? this.renderer.screenToWorld(point.x - rect.left, point.y - rect.top)
       : { x: WORLD.width / 2, y: WORLD.height / 2 };
   }
 
   isPointInside(element, event) {
     if (!element || !Number.isFinite(event.clientX) || !Number.isFinite(event.clientY)) return false;
-    const rect = element.getBoundingClientRect();
-    return event.clientX >= rect.left && event.clientX <= rect.right && event.clientY >= rect.top && event.clientY <= rect.bottom;
+    const point = this.getInputPoint(event);
+    const rect = this.isVirtualLandscape() ? this.getLayoutRect(element) : element.getBoundingClientRect();
+    return point.x >= rect.left && point.x <= rect.right && point.y >= rect.top && point.y <= rect.bottom;
+  }
+
+  isVirtualLandscape() {
+    return document.documentElement.classList.contains('is-virtual-landscape');
+  }
+
+  getInputPoint(event) {
+    if (!this.isVirtualLandscape()) return { x: event.clientX, y: event.clientY };
+    const { width, height } = getViewportSize();
+    if (height <= width) return { x: event.clientX, y: event.clientY };
+    return { x: event.clientY, y: width - event.clientX };
+  }
+
+  getLayoutRect(element) {
+    let left = 0;
+    let top = 0;
+    let node = element;
+    while (node instanceof HTMLElement) {
+      left += node.offsetLeft;
+      top += node.offsetTop;
+      node = node.offsetParent;
+    }
+    return {
+      left,
+      top,
+      right: left + (element.offsetWidth || 0),
+      bottom: top + (element.offsetHeight || 0),
+    };
   }
 
   getUnitCardAtPoint(event) {
@@ -1211,6 +1253,7 @@ class MemeWarApp {
 
   updateWorldLabels() {
     const visibleUnits = this.battleUnits;
+    this.syncFileSpriteFallback(visibleUnits);
     const activeIds = new Set();
     for (const unit of visibleUnits) {
       if (!unit.data || unit.alive === false && (unit.deadFor ?? 0) > 3) continue;
@@ -1265,6 +1308,45 @@ class MemeWarApp {
       if (!activeEffectIds.has(id)) {
         node.remove();
         this.effectLabelNodes.delete(id);
+      }
+    }
+  }
+
+  syncFileSpriteFallback(visibleUnits) {
+    const shouldShow = IS_FILE_PROTOCOL && !this.renderer?.spriteReady && Boolean(this.worldSprites);
+    const activeIds = new Set();
+    if (shouldShow) {
+      for (const unit of visibleUnits) {
+        if (!unit.data || !Number.isInteger(unit.data.spriteIndex) || (unit.alive === false && (unit.deadFor ?? 0) > 3)) continue;
+        const id = unit.id ?? `${unit.side}-${unit.data.id}-${unit.x}-${unit.y}`;
+        activeIds.add(id);
+        let sprite = this.spriteNodes.get(id);
+        if (!sprite) {
+          sprite = makeElement('div', 'world-sprite');
+          this.spriteNodes.set(id, sprite);
+          this.worldSprites.append(sprite);
+        }
+        const data = unit.data;
+        const alive = unit.alive !== false;
+        const deathProgress = alive ? 1 : clamp(1 - (unit.deadFor ?? 0) / 3, 0, 1);
+        const pulse = alive && unit.pulse > 0 ? 1 + Math.sin(this.renderTime * 36) * 0.08 : 1;
+        const size = Math.max(data.radius * 3.0, 70) * (alive ? pulse : 0.9) * this.renderer.camera.zoom;
+        const screen = this.renderer.worldToScreen(unit.x, unit.y - data.radius * 0.22);
+        const column = data.spriteIndex % 4;
+        const row = Math.floor(data.spriteIndex / 4);
+        sprite.style.left = `${screen.x}px`;
+        sprite.style.top = `${screen.y}px`;
+        sprite.style.width = `${size}px`;
+        sprite.style.height = `${size}px`;
+        sprite.style.opacity = String((alive ? 0.98 : 0.44) * deathProgress);
+        sprite.style.backgroundImage = `url("${UNIT_TEXTURE_URL}")`;
+        sprite.style.backgroundPosition = `${column * (100 / 3)}% ${row * (100 / 3)}%`;
+      }
+    }
+    for (const [id, node] of this.spriteNodes.entries()) {
+      if (!activeIds.has(id)) {
+        node.remove();
+        this.spriteNodes.delete(id);
       }
     }
   }

@@ -159,17 +159,25 @@ class NativeWebGLRenderer {
           reject(new Error('无法创建手绘角色纹理'));
           return;
         }
-        gl.bindTexture(gl.TEXTURE_2D, texture);
-        gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image);
-        gl.bindTexture(gl.TEXTURE_2D, null);
-        this.spriteTexture = texture;
-        this.spriteReady = true;
-        resolve();
+        try {
+          gl.bindTexture(gl.TEXTURE_2D, texture);
+          gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
+          gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+          gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+          gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+          gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+          gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image);
+          gl.bindTexture(gl.TEXTURE_2D, null);
+          this.spriteTexture = texture;
+          this.spriteReady = true;
+          resolve();
+        } catch (error) {
+          gl.bindTexture(gl.TEXTURE_2D, null);
+          gl.deleteTexture(texture);
+          this.spriteTexture = null;
+          this.spriteReady = false;
+          reject(error);
+        }
       };
       image.onerror = () => reject(new Error(`无法加载手绘角色纹理：${url}`));
       image.src = url;
@@ -178,8 +186,9 @@ class NativeWebGLRenderer {
 
   resize() {
     const rect = this.canvas.getBoundingClientRect();
-    this.width = Math.max(1, rect.width || this.canvas.clientWidth || 1);
-    this.height = Math.max(1, rect.height || this.canvas.clientHeight || 1);
+    const isVirtualLandscape = document.documentElement.classList.contains('is-virtual-landscape');
+    this.width = Math.max(1, isVirtualLandscape ? (this.canvas.offsetWidth || rect.height || 1) : (rect.width || this.canvas.clientWidth || 1));
+    this.height = Math.max(1, isVirtualLandscape ? (this.canvas.offsetHeight || rect.width || 1) : (rect.height || this.canvas.clientHeight || 1));
     this.dpr = Math.min(window.devicePixelRatio || 1, this.isMobile ? 1.25 : 1.75);
     this.canvas.width = Math.round(this.width * this.dpr);
     this.canvas.height = Math.round(this.height * this.dpr);

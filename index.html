@@ -17,7 +17,7 @@
         const shortEdge = Math.min(width, height);
         const hasTouchInput = navigator.maxTouchPoints > 0 || Boolean(window.matchMedia?.('(pointer: coarse)').matches);
         if (height > width && shortEdge <= 1024 && (hasTouchInput || shortEdge <= 600)) {
-          document.documentElement.classList.add('is-portrait-phone');
+          document.documentElement.classList.add('is-virtual-landscape');
         }
       })();
     </script>
@@ -56,7 +56,8 @@ button { color: inherit; }
 button:focus-visible, select:focus-visible { outline: 2px solid var(--teal); outline-offset: 2px; box-shadow: var(--focus-ring); }
 
 .orientation-gate {
-  position: fixed; inset: 0; z-index: 40; display: none; place-items: center; padding: 24px;
+  position: fixed; inset: 0; z-index: 40; display: none; place-items: center;
+  padding: max(24px, env(safe-area-inset-top)) max(24px, env(safe-area-inset-right)) max(24px, env(safe-area-inset-bottom)) max(24px, env(safe-area-inset-left));
   color: var(--ink); background: radial-gradient(circle at 50% 35%, rgba(36, 96, 105, .34), transparent 42%), #06111c;
 }
 .orientation-card {
@@ -68,12 +69,7 @@ button:focus-visible, select:focus-visible { outline: 2px solid var(--teal); out
 .orientation-card strong { font-size: 22px; }
 .orientation-card p { margin: 0 0 4px; color: var(--muted); font-size: 12px; line-height: 1.65; }
 @keyframes orientation-spin { 0%, 100% { transform: rotate(-18deg); } 50% { transform: rotate(18deg); } }
-html.is-portrait-phone #orientationGate { display: grid; }
-html.is-portrait-phone #app { visibility: hidden; pointer-events: none; }
-@media (max-width: 900px) and (orientation: portrait) {
-  #orientationGate { display: grid; }
-  #app { visibility: hidden; pointer-events: none; }
-}
+html.is-virtual-landscape #orientationGate { display: none !important; }
 
 #app {
   width: 100%;
@@ -140,6 +136,12 @@ html.is-portrait-phone #app { visibility: hidden; pointer-events: none; }
 #battlefieldShell { position: absolute; inset: 0 280px 0 0; overflow: hidden; }
 #gameCanvas { display: block; width: 100%; height: 100%; cursor: grab; touch-action: none; }
 #gameCanvas.is-dragging { cursor: grabbing; }
+#worldSprites { position: absolute; inset: 0; z-index: 1; pointer-events: none; overflow: hidden; }
+.world-sprite {
+  position: absolute; display: block; transform: translate(-50%, -50%); pointer-events: none;
+  background-repeat: no-repeat; background-size: 400% 400%; background-color: transparent;
+  filter: drop-shadow(2px 4px 2px rgba(0, 0, 0, .38));
+}
 #worldLabels { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
 .world-label {
   position: absolute; transform: translate(-50%, -50%); white-space: nowrap;
@@ -326,7 +328,7 @@ html.is-portrait-phone #app { visibility: hidden; pointer-events: none; }
 }
 
 /* 手机横屏：保留战场主视图，把说明栏压缩到右侧，卡栏固定在底部。 */
-@media (max-width: 900px) and (orientation: landscape) {
+@media (max-width: 900px) and (orientation: landscape), (max-width: 900px) and (orientation: portrait) {
   html, body { width: 100%; height: 100%; overflow: hidden; }
   #app { min-height: 100dvh; height: 100dvh; grid-template-rows: 54px minmax(0, 1fr) 116px; }
   #app.phase-battle, #app.phase-result { grid-template-rows: 54px minmax(0, 1fr) 0; }
@@ -386,6 +388,26 @@ html.is-portrait-phone #app { visibility: hidden; pointer-events: none; }
   #worldLabels { contain: strict; }
   .orientation-card .button { min-height: 46px; }
 }
+
+/* 浏览器拒绝物理锁定横屏时，用长边作为游戏宽度，旋转整个游戏舞台。 */
+@media (max-width: 1024px) and (orientation: portrait) {
+  html, body { width: 100%; height: 100%; overflow: hidden; }
+  #orientationGate { display: none !important; }
+  #app {
+    position: fixed; inset: 0 auto auto 0;
+    width: 100dvh; height: 100dvw; min-width: 0; min-height: 0;
+    transform: rotate(90deg) translateY(-100%);
+    transform-origin: top left;
+  }
+}
+
+html.is-virtual-landscape #orientationGate { display: none !important; }
+html.is-virtual-landscape #app {
+  position: fixed; inset: 0 auto auto 0;
+  width: 100dvh; height: 100dvw; min-width: 0; min-height: 0;
+  transform: rotate(90deg) translateY(-100%);
+  transform-origin: top left;
+}
 </style>
     <!-- MEME_WAR_STATIC_STYLE_END -->
   </head>
@@ -433,6 +455,7 @@ html.is-portrait-phone #app { visibility: hidden; pointer-events: none; }
       <main id="playArea">
         <section id="battlefieldShell" aria-label="战场">
           <canvas id="gameCanvas" aria-label="WebGL 战场画布"></canvas>
+          <div id="worldSprites" aria-hidden="true"></div>
           <div id="worldLabels" aria-hidden="true"></div>
 
           <div id="prepGuide" class="floating-guide">
@@ -1528,17 +1551,25 @@ class NativeWebGLRenderer {
           reject(new Error('无法创建手绘角色纹理'));
           return;
         }
-        gl.bindTexture(gl.TEXTURE_2D, texture);
-        gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image);
-        gl.bindTexture(gl.TEXTURE_2D, null);
-        this.spriteTexture = texture;
-        this.spriteReady = true;
-        resolve();
+        try {
+          gl.bindTexture(gl.TEXTURE_2D, texture);
+          gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
+          gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+          gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+          gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+          gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+          gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image);
+          gl.bindTexture(gl.TEXTURE_2D, null);
+          this.spriteTexture = texture;
+          this.spriteReady = true;
+          resolve();
+        } catch (error) {
+          gl.bindTexture(gl.TEXTURE_2D, null);
+          gl.deleteTexture(texture);
+          this.spriteTexture = null;
+          this.spriteReady = false;
+          reject(error);
+        }
       };
       image.onerror = () => reject(new Error(`无法加载手绘角色纹理：${url}`));
       image.src = url;
@@ -1547,8 +1578,9 @@ class NativeWebGLRenderer {
 
   resize() {
     const rect = this.canvas.getBoundingClientRect();
-    this.width = Math.max(1, rect.width || this.canvas.clientWidth || 1);
-    this.height = Math.max(1, rect.height || this.canvas.clientHeight || 1);
+    const isVirtualLandscape = document.documentElement.classList.contains('is-virtual-landscape');
+    this.width = Math.max(1, isVirtualLandscape ? (this.canvas.offsetWidth || rect.height || 1) : (rect.width || this.canvas.clientWidth || 1));
+    this.height = Math.max(1, isVirtualLandscape ? (this.canvas.offsetHeight || rect.width || 1) : (rect.height || this.canvas.clientHeight || 1));
     this.dpr = Math.min(window.devicePixelRatio || 1, this.isMobile ? 1.25 : 1.75);
     this.canvas.width = Math.round(this.width * this.dpr);
     this.canvas.height = Math.round(this.height * this.dpr);
@@ -1707,6 +1739,7 @@ const MIN_ZOOM = 0.42;
 const MAX_ZOOM = 1.45;
 const PLAYER_ZONE_RIGHT = 760;
 const PLAYER_SAFE_MARGIN = 48;
+const IS_FILE_PROTOCOL = window.location.protocol === 'file:';
 
 const $ = (selector) => document.querySelector(selector);
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
@@ -1803,6 +1836,7 @@ class MemeWarApp {
     this.levels = levelsData.levels;
     this.audio = new TinyAudio();
     this.canvas = $('#gameCanvas');
+    this.worldSprites = $('#worldSprites');
     this.worldLabels = $('#worldLabels');
     this.renderer = null;
     this.simulation = null;
@@ -1829,6 +1863,7 @@ class MemeWarApp {
     this.resultShown = false;
     this.labelNodes = new Map();
     this.effectLabelNodes = new Map();
+    this.spriteNodes = new Map();
     this.textureLoadPromise = null;
 
     this.camera = { x: WORLD.width / 2, y: WORLD.height / 2, zoom: 0.72 };
@@ -1927,7 +1962,7 @@ class MemeWarApp {
     this.textureLoadPromise = this.renderer.loadTexture(UNIT_TEXTURE_URL)
       .then(() => this.syncUnitCardTextures())
       .catch(() => {
-        this.showToast('手绘角色纹理加载失败，将使用几何占位。');
+        if (!IS_FILE_PROTOCOL) this.showToast('手绘角色纹理加载失败，将使用几何占位。');
       });
     return this.textureLoadPromise;
   }
@@ -1988,12 +2023,13 @@ class MemeWarApp {
 
   syncUnitCardTextures() {
     const textureReady = Boolean(this.renderer?.spriteReady);
+    const textureAvailable = textureReady || IS_FILE_PROTOCOL;
     for (const card of this.elements.unitList.children) {
       const unit = this.unitsById[card.dataset.unitId];
       const glyph = card.querySelector('.unit-glyph');
       if (!unit || !glyph) continue;
       glyph.style.background = unit.color;
-      if (textureReady && Number.isInteger(unit.spriteIndex)) {
+      if (textureAvailable && Number.isInteger(unit.spriteIndex)) {
         const spriteColumn = unit.spriteIndex % 4;
         const spriteRow = Math.floor(unit.spriteIndex / 4);
         glyph.textContent = '';
@@ -2230,10 +2266,11 @@ class MemeWarApp {
     const { width, height } = getViewportSize();
     const isPortrait = height > width;
     const isPhoneLike = Math.min(width, height) <= 1024 && (navigator.maxTouchPoints > 0 || Boolean(window.matchMedia?.('(pointer: coarse)').matches) || Math.min(width, height) <= 600);
-    const shouldGate = isPortrait && isPhoneLike;
-    document.documentElement.classList.toggle('is-portrait-phone', shouldGate);
-    document.documentElement.dataset.orientation = isPortrait ? 'portrait' : 'landscape';
-    if (this.elements.orientationGate) this.elements.orientationGate.setAttribute('aria-hidden', String(!shouldGate));
+    const shouldVirtualize = isPortrait && isPhoneLike;
+    document.documentElement.classList.toggle('is-virtual-landscape', shouldVirtualize);
+    document.documentElement.classList.remove('is-portrait-phone');
+    document.documentElement.dataset.orientation = shouldVirtualize ? 'virtual-landscape' : 'landscape';
+    if (this.elements.orientationGate) this.elements.orientationGate.setAttribute('aria-hidden', 'true');
   }
 
   onUnitCardPointerDown(event, unitId) {
@@ -2257,8 +2294,13 @@ class MemeWarApp {
     }
 
     if (!this.draggedUnit) {
-      const dx = event.clientX - this.cardPointer.startX;
-      const dy = event.clientY - this.cardPointer.startY;
+      const startPoint = this.getInputPoint({
+        clientX: this.cardPointer.startX,
+        clientY: this.cardPointer.startY,
+      });
+      const currentPoint = this.getInputPoint(event);
+      const dx = currentPoint.x - startPoint.x;
+      const dy = currentPoint.y - startPoint.y;
       if (Math.hypot(dx, dy) < 10) return;
       if (event.pointerType === 'touch' && Math.abs(dx) > Math.abs(dy)) return;
       const unit = this.unitsById[this.cardPointer.unitId];
@@ -2344,10 +2386,11 @@ class MemeWarApp {
 
     if (this.phase === 'battle' || this.phase === 'result') {
       this.slowInput = event.button === 0 && this.phase === 'battle';
+      const point = this.getInputPoint(event);
       this.cameraDrag = {
         pointerId: event.pointerId,
-        startX: event.clientX,
-        startY: event.clientY,
+        startX: point.x,
+        startY: point.y,
         cameraX: this.camera.x,
         cameraY: this.camera.y,
       };
@@ -2372,8 +2415,9 @@ class MemeWarApp {
     const world = this.pointerToWorld(event);
     this.hoverWorld = world;
     if (this.cameraDrag?.pointerId === event.pointerId) {
-      const dx = (event.clientX - this.cameraDrag.startX) / this.camera.zoom;
-      const dy = (event.clientY - this.cameraDrag.startY) / this.camera.zoom;
+      const point = this.getInputPoint(event);
+      const dx = (point.x - this.cameraDrag.startX) / this.camera.zoom;
+      const dy = (point.y - this.cameraDrag.startY) / this.camera.zoom;
       this.camera.x = this.cameraDrag.cameraX - dx;
       this.camera.y = this.cameraDrag.cameraY - dy;
       this.clampCamera();
@@ -2419,16 +2463,46 @@ class MemeWarApp {
   }
 
   pointerToWorld(event) {
-    const rect = this.canvas.getBoundingClientRect();
+    const point = this.getInputPoint(event);
+    const rect = this.isVirtualLandscape() ? this.getLayoutRect(this.canvas) : this.canvas.getBoundingClientRect();
     return this.renderer
-      ? this.renderer.screenToWorld(event.clientX - rect.left, event.clientY - rect.top)
+      ? this.renderer.screenToWorld(point.x - rect.left, point.y - rect.top)
       : { x: WORLD.width / 2, y: WORLD.height / 2 };
   }
 
   isPointInside(element, event) {
     if (!element || !Number.isFinite(event.clientX) || !Number.isFinite(event.clientY)) return false;
-    const rect = element.getBoundingClientRect();
-    return event.clientX >= rect.left && event.clientX <= rect.right && event.clientY >= rect.top && event.clientY <= rect.bottom;
+    const point = this.getInputPoint(event);
+    const rect = this.isVirtualLandscape() ? this.getLayoutRect(element) : element.getBoundingClientRect();
+    return point.x >= rect.left && point.x <= rect.right && point.y >= rect.top && point.y <= rect.bottom;
+  }
+
+  isVirtualLandscape() {
+    return document.documentElement.classList.contains('is-virtual-landscape');
+  }
+
+  getInputPoint(event) {
+    if (!this.isVirtualLandscape()) return { x: event.clientX, y: event.clientY };
+    const { width, height } = getViewportSize();
+    if (height <= width) return { x: event.clientX, y: event.clientY };
+    return { x: event.clientY, y: width - event.clientX };
+  }
+
+  getLayoutRect(element) {
+    let left = 0;
+    let top = 0;
+    let node = element;
+    while (node instanceof HTMLElement) {
+      left += node.offsetLeft;
+      top += node.offsetTop;
+      node = node.offsetParent;
+    }
+    return {
+      left,
+      top,
+      right: left + (element.offsetWidth || 0),
+      bottom: top + (element.offsetHeight || 0),
+    };
   }
 
   getUnitCardAtPoint(event) {
@@ -2911,6 +2985,7 @@ class MemeWarApp {
 
   updateWorldLabels() {
     const visibleUnits = this.battleUnits;
+    this.syncFileSpriteFallback(visibleUnits);
     const activeIds = new Set();
     for (const unit of visibleUnits) {
       if (!unit.data || unit.alive === false && (unit.deadFor ?? 0) > 3) continue;
@@ -2965,6 +3040,45 @@ class MemeWarApp {
       if (!activeEffectIds.has(id)) {
         node.remove();
         this.effectLabelNodes.delete(id);
+      }
+    }
+  }
+
+  syncFileSpriteFallback(visibleUnits) {
+    const shouldShow = IS_FILE_PROTOCOL && !this.renderer?.spriteReady && Boolean(this.worldSprites);
+    const activeIds = new Set();
+    if (shouldShow) {
+      for (const unit of visibleUnits) {
+        if (!unit.data || !Number.isInteger(unit.data.spriteIndex) || (unit.alive === false && (unit.deadFor ?? 0) > 3)) continue;
+        const id = unit.id ?? `${unit.side}-${unit.data.id}-${unit.x}-${unit.y}`;
+        activeIds.add(id);
+        let sprite = this.spriteNodes.get(id);
+        if (!sprite) {
+          sprite = makeElement('div', 'world-sprite');
+          this.spriteNodes.set(id, sprite);
+          this.worldSprites.append(sprite);
+        }
+        const data = unit.data;
+        const alive = unit.alive !== false;
+        const deathProgress = alive ? 1 : clamp(1 - (unit.deadFor ?? 0) / 3, 0, 1);
+        const pulse = alive && unit.pulse > 0 ? 1 + Math.sin(this.renderTime * 36) * 0.08 : 1;
+        const size = Math.max(data.radius * 3.0, 70) * (alive ? pulse : 0.9) * this.renderer.camera.zoom;
+        const screen = this.renderer.worldToScreen(unit.x, unit.y - data.radius * 0.22);
+        const column = data.spriteIndex % 4;
+        const row = Math.floor(data.spriteIndex / 4);
+        sprite.style.left = `${screen.x}px`;
+        sprite.style.top = `${screen.y}px`;
+        sprite.style.width = `${size}px`;
+        sprite.style.height = `${size}px`;
+        sprite.style.opacity = String((alive ? 0.98 : 0.44) * deathProgress);
+        sprite.style.backgroundImage = `url("${UNIT_TEXTURE_URL}")`;
+        sprite.style.backgroundPosition = `${column * (100 / 3)}% ${row * (100 / 3)}%`;
+      }
+    }
+    for (const [id, node] of this.spriteNodes.entries()) {
+      if (!activeIds.has(id)) {
+        node.remove();
+        this.spriteNodes.delete(id);
       }
     }
   }

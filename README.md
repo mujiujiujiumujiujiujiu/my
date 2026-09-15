@@ -4,7 +4,7 @@
 
 ## 运行
 
-最简单的方式：双击项目根目录里的 `index.html`，现代浏览器会直接加载静态内嵌数据并启动游戏，无需 Node.js。
+最简单的方式：双击项目根目录里的 `index.html`，现代浏览器会直接加载静态内嵌数据并启动游戏，无需 Node.js。`file://` 下浏览器不允许 WebGL 直接上传本地图像，项目会自动用 DOM 图集回退显示角色美术；请保留整个 `assets` 文件夹。
 
 如果修改了 `data/*.json`、`styles.css` 或 `src/*.js`，先运行一次 `npm run build`，它会把最新数据、样式和运行代码写入 `index.html`，保证双击入口和 GitHub Pages 使用同一份内容。约 2 MB 的 PNG 图集改为启动后低优先级加载，首屏先用轻量几何/文字占位，纹理失败也不会卡在加载画面。
 
@@ -24,7 +24,7 @@ npm run start
 ## 操作
 
 - 准备阶段：点击底部兵种卡，再点击战场左半区部署；也可以直接把兵种卡拖到左半场。
-- 手机横屏：入口会按 `visualViewport` 的宽高识别长边，竖屏先显示旋转门；点击“尝试自动横屏”会请求全屏与 `screen.orientation.lock('landscape')`，浏览器不支持时手动旋转即可继续。底部卡栏支持横向滑动，拖已部署单位回任意兵种卡即可撤销并全额退款。
+- 手机横屏：入口按 `visualViewport` 的宽高识别长边，`x > y` 使用普通横屏，`y > x` 自动进入虚拟横屏，把长边作为游戏宽度并旋转舞台填满视口；不再因浏览器拒绝物理锁定而卡在加载/横屏门。支持的设备仍会 best-effort 请求全屏与 `screen.orientation.lock('landscape')`，但网页无法强制改变 OS 物理方向，竖直握持时建议把手机转横以获得正常可读方向。底部卡栏支持滑动，拖已部署单位回任意兵种卡即可撤销并全额退款。
 - 右键玩家单位：撤回并返还费用；拖拽可调整位置。
 - `开始战斗`：锁定部署并观看自动战斗。
 - 每清空一波下一波立即入场；清空全部波次后进入结算并可前往下一关。
@@ -52,7 +52,7 @@ npm run start
 - `src/main.js`：输入、场景切换、UI、音效反馈和主循环。
 - `data/units.json`：单位数值与技能数据源。
 - `data/levels.json`：关卡预算、敌方编队和提示。
-- `assets/units-handdrawn-atlas.png`：4 × 4 手绘角色图集，启动后异步加载；索引说明见 `assets/ASSET_NOTES.md`。
+- `assets/units-handdrawn-atlas.png`：4 × 4 手绘角色图集，启动后异步加载；`file://` 入口也依赖它做 DOM 美术回退；索引说明见 `assets/ASSET_NOTES.md`。
 - `manifest.webmanifest`：安装到手机主屏时声明全屏与横屏方向。
 - `scripts/check-data.mjs`：无依赖数据与语法检查。
 - `scripts/check-balance.mjs`：固定种子基准编队烟测，确保每关可在预算内完整清场。
