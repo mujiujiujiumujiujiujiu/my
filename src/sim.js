@@ -22,6 +22,11 @@ function freshStatus() {
     delayedDamage: 0,
     delayedBy: null,
     damageReduction: 0,
+    supportHaste: 0,
+    supportDamage: 0,
+    supportDamageReduction: 0,
+    supportUntil: 0,
+    supportSource: null,
   };
 }
 
@@ -257,11 +262,15 @@ class BattleSimulation {
     unit.facing = Math.atan2(dy, dx);
     const keepDistance = this.shouldKeepDistance(unit);
     const preferredDistance = this.getPreferredDistance(unit, attackRange);
-    const retreatThreshold = Math.max(unit.data.radius + target.data.radius + 12, preferredDistance - 16);
+    const configuredRetreat = Number(unit.data.retreatDistance);
+    const retreatThreshold = Math.max(
+      unit.data.radius + target.data.radius + 12,
+      Number.isFinite(configuredRetreat) && configuredRetreat > 0 ? configuredRetreat : preferredDistance - 16,
+    );
 
     if (keepDistance && distanceToTarget < retreatThreshold) {
       unit.intent = 'retreat';
-      const speedMultiplier = (unit.status.slow > 0 ? 1 - this.getSlowAmount(unit) : 1) * 1.12;
+      const speedMultiplier = this.getSlowMultiplier(unit) * (Number(unit.data.retreatSpeedMultiplier) || 1);
       if (distanceToTarget <= attackRange && unit.attackCd <= 0 && unit.data.atk > 0 && unit.data.range > 100) {
         this.attack(unit, target, direction);
       }
@@ -278,7 +287,7 @@ class BattleSimulation {
       this.brakeUnit(unit, dt);
     } else {
       unit.intent = 'advance';
-      const speedMultiplier = unit.status.slow > 0 ? 1 - this.getSlowAmount(unit) : 1;
+      const speedMultiplier = this.getSlowMultiplier(unit) * this.getApproachSpeedMultiplier(unit, target, keepDistance);
       this.moveUnit(unit, direction.x, direction.y, dt, speedMultiplier);
     }
   }
@@ -296,6 +305,16 @@ class BattleSimulation {
     return Math.max(140, unit.data.range + 90);
   }
 
+  getSlowMultiplier(unit) {
+    return unit.status.slow > 0 ? 1 - this.getSlowAmount(unit) : 1;
+  }
+
+  getApproachSpeedMultiplier(unit, target, keepDistance) {
+    if (keepDistance) return Number(unit.data.approachSpeedMultiplier) || 1;
+    if (target && this.shouldKeepDistance(target)) return Number(unit.data.pursuitSpeedMultiplier) || 1.12;
+    return 1;
+  }
+
   brakeUnit(unit, dt) {
     unit.vx *= Math.max(0, 1 - dt * 10);
     unit.vy *= Math.max(0, 1 - dt * 10);
@@ -305,7 +324,11 @@ class BattleSimulation {
   }
 
   moveUnit(unit, directionX, directionY, dt, speedMultiplier = 1) {
-    const speed = unit.data.spd * speedMultiplier * (unit.data.id === 'dayun' && unit.hp / unit.maxHp < 0.4 ? 1.22 : 1);
+    const support = this.getActiveSupportBuff(unit);
+    const speed = unit.data.spd
+      * speedMultiplier
+      * (support.active ? 1 + support.haste : 1)
+      * (unit.data.id === 'dayun' && unit.hp / unit.maxHp < 0.4 ? 1.22 : 1);
     const acceleration = 7.5;
     unit.vx += directionX * acceleration * speed * dt;
     unit.vy += directionY * acceleration * speed * dt;
@@ -477,9 +500,13 @@ class BattleSimulation {
     }
 
     if (skill.type === 'aoeSlow' && target && distance(unit, target) < 260) {
-      for (const candidate of nearbyEnemies(unit, skill.radius)) candidate.status.slow = Math.max(candidate.status.slow, 4);
+      const targets = nearbyEnemies(unit, skill.radius);
+      const buffTargets = allies.filter((ally) => distance(unit, ally) <= (skill.allyRadius ?? skill.radius));
+      if (targets.length === 0 && buffTargets.length === 0) return false;
+      for (const candidate of targets) candidate.status.slow = Math.max(candidate.status.slow, 4);
+      for (const ally of buffTargets) this.applySupportBuff(ally, skill, unit);
       setCooldown();
-      displaySkill();
+      displaySkill(this.hasSupportBuff(skill) ? 'buff' : 'skill', this.hasSupportBuff(skill) ? { label: skill.buffLabel ?? '团队增益' } : {});
       return true;
     }
 
@@ -491,15 +518,20 @@ class BattleSimulation {
     }
 
     if (skill.type === 'heal') {
-      const injured = allies.filter((ally) => ally.hp < ally.maxHp * 0.92).sort((a, b) => a.hp / a.maxHp - b.hp / b.maxHp)[0];
+      const injured = allies
+        .slice()
+        .sort((a, b) => a.hp / a.maxHp - b.hp / b.maxHp)[0];
       if (!injured) return false;
       const amount = Math.min(skill.amount, injured.maxHp - injured.hp);
-      injured.hp += amount;
-      injured.pulse = 0.55;
-      this.floatingTexts.push({ x: injured.x, y: injured.y - 38, text: `+${Math.round(amount)}`, color: '#9cf6a6', life: 0.9, maxLife: 0.9 });
-      this.addEffect('heal', injured.x, injured.y, '#9cf6a6', 68, 0.85, { label: '治疗' });
+      if (amount > 0) {
+        injured.hp += amount;
+        injured.pulse = 0.55;
+        this.floatingTexts.push({ x: injured.x, y: injured.y - 38, text: `+${Math.round(amount)}`, color: '#9cf6a6', life: 0.9, maxLife: 0.9 });
+        this.addEffect('heal', injured.x, injured.y, '#9cf6a6', 68, 0.85, { label: '治疗' });
+      }
+      if (this.hasSupportBuff(skill)) this.applySupportBuff(injured, skill, unit);
       setCooldown();
-      displaySkill();
+      displaySkill(this.hasSupportBuff(skill) ? 'buff' : 'skill', this.hasSupportBuff(skill) ? { label: skill.buffLabel ?? '治疗增益' } : {});
       return true;
     }
 
@@ -515,10 +547,12 @@ class BattleSimulation {
 
     if (skill.type === 'aura') {
       const targets = nearbyEnemies(unit, skill.radius);
-      if (targets.length === 0) return false;
+      const buffTargets = allies.filter((ally) => distance(unit, ally) <= (skill.allyRadius ?? skill.radius));
+      if (targets.length === 0 && buffTargets.length === 0) return false;
       for (const enemy of targets) enemy.status.slow = Math.max(enemy.status.slow, 2.5);
+      for (const ally of buffTargets) this.applySupportBuff(ally, skill, unit);
       setCooldown();
-      displaySkill();
+      displaySkill(this.hasSupportBuff(skill) ? 'buff' : 'skill', this.hasSupportBuff(skill) ? { label: skill.buffLabel ?? '团队增益' } : {});
       return true;
     }
 
@@ -548,6 +582,44 @@ class BattleSimulation {
     return false;
   }
 
+  hasSupportBuff(skill) {
+    return ['haste', 'damageBonus', 'damageReduction'].some((key) => Number(skill?.[key]) > 0);
+  }
+
+  getActiveSupportBuff(unit) {
+    const status = unit?.status;
+    if (!status || status.supportUntil <= this.time) return { active: false, haste: 0, damage: 0, damageReduction: 0 };
+    return {
+      active: true,
+      haste: Math.max(0, Number(status.supportHaste) || 0),
+      damage: Math.max(0, Number(status.supportDamage) || 0),
+      damageReduction: clamp(Number(status.supportDamageReduction) || 0, 0, 0.8),
+    };
+  }
+
+  applySupportBuff(target, skill, source) {
+    if (!target?.alive || !this.hasSupportBuff(skill)) return false;
+    const status = target.status;
+    if (!this.getActiveSupportBuff(target).active) {
+      status.supportHaste = 0;
+      status.supportDamage = 0;
+      status.supportDamageReduction = 0;
+    }
+    status.supportHaste = Math.max(status.supportHaste, clamp(Number(skill.haste) || 0, 0, 0.6));
+    status.supportDamage = Math.max(status.supportDamage, clamp(Number(skill.damageBonus) || 0, 0, 0.6));
+    status.supportDamageReduction = Math.max(status.supportDamageReduction, clamp(Number(skill.damageReduction) || 0, 0, 0.8));
+    status.supportUntil = Math.max(status.supportUntil, this.time + Math.max(1, Number(skill.duration) || 4));
+    status.supportSource = source?.id ?? null;
+    target.pulse = Math.max(target.pulse, 0.7);
+    const buffParts = [];
+    if (status.supportHaste > 0) buffParts.push(`移速/攻速 +${Math.round(status.supportHaste * 100)}%`);
+    if (status.supportDamage > 0) buffParts.push(`伤害 +${Math.round(status.supportDamage * 100)}%`);
+    if (status.supportDamageReduction > 0) buffParts.push(`减伤 ${Math.round(status.supportDamageReduction * 100)}%`);
+    this.floatingTexts.push({ x: target.x, y: target.y - target.data.radius - 18, text: buffParts.join(' · '), color: '#9cf6a6', life: 1.05, maxLife: 1.05 });
+    this.addEffect('buff', target.x, target.y, '#9cf6a6', Math.max(54, target.data.radius * 2.8), 1.05, { label: skill.buffLabel ?? '增益' });
+    return true;
+  }
+
   attack(attacker, target, direction) {
     attacker.attackCount += 1;
     const damage = this.getAttackDamage(attacker);
@@ -562,10 +634,10 @@ class BattleSimulation {
         color: attacker.data.accent,
         life: 2.2,
       });
-      attacker.attackCd = 1 / Math.max(0.2, attacker.data.as);
+      attacker.attackCd = 1 / Math.max(0.2, this.getAttackSpeed(attacker));
     } else {
       this.applyDamage(attacker, target, damage, 'hit', 26 + attacker.data.atk * 0.65);
-      attacker.attackCd = 1 / Math.max(0.2, attacker.data.as);
+      attacker.attackCd = 1 / Math.max(0.2, this.getAttackSpeed(attacker));
     }
     attacker.facing = Math.atan2(direction.y, direction.x);
 
@@ -585,6 +657,8 @@ class BattleSimulation {
 
   getAttackDamage(attacker) {
     let amount = attacker.data.atk;
+    const support = this.getActiveSupportBuff(attacker);
+    if (support.active) amount *= 1 + support.damage;
     if (attacker.data.id === 'dayun' && attacker.hp / attacker.maxHp < 0.4) amount *= 1.2;
     if (attacker.data.id === 'huaqiang' && this.random() < 0.15) amount *= 2;
     if (attacker.data.id === 'miaocuijiao' && attacker.pulse > 0) amount *= 2;
@@ -593,6 +667,11 @@ class BattleSimulation {
       amount *= 1 + Math.min(5, sameSide - 1) * 0.03;
     }
     return amount;
+  }
+
+  getAttackSpeed(attacker) {
+    const support = this.getActiveSupportBuff(attacker);
+    return attacker.data.as * (support.active ? 1 + support.haste : 1);
   }
 
   applyDamage(source, target, rawDamage, kind = 'hit', knockback = 0) {
@@ -605,6 +684,8 @@ class BattleSimulation {
     }
     if (target.status.guard > 0) damage *= 0.3;
     if (target.status.damageReduction > 0) damage *= 0.7;
+    const support = this.getActiveSupportBuff(target);
+    if (support.active) damage *= 1 - support.damageReduction;
     if (target.data.id === 'dayun' && target.hp / target.maxHp < 0.4) damage *= 1.15;
     damage = Math.max(1, damage);
     target.hp = Math.max(0, target.hp - damage);

@@ -2,77 +2,48 @@
 
 ## 本轮错误现象
 
-- 用户直接双击 `index.html` 后，页面一直停留在“正在加载战场数据…”。
-- 用户提供的真实 Console：`Access to script at 'file:///.../src/main.js' from origin 'null' has been blocked by CORS policy`，随后 `main.js` 加载失败。
+- 手机端首屏加载慢，纹理图集与页面启动互相拖慢。
+- 手机浏览器默认竖屏打开，战场布局不可用。
+- 远程单位与近战单位基础移速过于接近，近战可能长期追不上后排；辅助技能的数值变化缺少可见反馈。
+- 早期直接双击入口曾停留在“正在加载战场数据…”，Console 报告 `file://` 外部脚本被 CORS 拦截。
 
-## 最小重现步骤
+## 根因与修复
 
-1. 双击项目根目录的 `index.html`。
-2. 等待页面初始化。
-3. 预期进入“准备部署”，实际加载遮罩不消失。
-
-## 当前错误讯息 / Log
-
-- 用户本机直接打开时，浏览器明确阻止 `file:///.../src/main.js` 外部脚本，页面 origin 为 `null`。
-- 本地 HTTP 入口可进入“准备部署”，且当前控制台无错误。
+- 首屏根因：原构建把约 2 MB PNG 图集转成 base64 放入 HTML，并在初始化路径等待纹理。现在 `scripts/build-static.mjs` 只内嵌数据、CSS 和运行时代码，纹理改为 `./assets/units-handdrawn-atlas.png`；`src/main.js` 先隐藏加载层并启动准备界面，手机端延后约 1.8 秒或在首次触控时加载图集，桌面端使用 `requestIdleCallback`/定时器，卡片和战场都有占位回退。
+- 横屏根因：网页没有可靠权限强制旋转物理屏幕。现在入口同步设置横屏 meta，并在首屏脚本与 CSS 中按视口宽高识别竖屏手机；`src/main.js` 监听 `visualViewport`、`resize`、`orientationchange`、`fullscreenchange`，竖屏显示横屏门、隐藏战场。用户点击按钮后依次尝试全屏和 `screen.orientation.lock('landscape')`；浏览器拒绝时仍可手动旋转。
+- 移速根因：所有单位只使用一个 `spd`，追击和后撤没有行为差异。现在 `data/units.json` 为远程/辅助配置守距与后撤距离，为近战配置追击倍率；`src/sim.js` 在寻路时区分保持距离、后撤和近战追击，战斗回归确认嘎子能追上蔡徐坤。
+- 辅助反馈根因：辅助只改变生命或控制，无法判断增益是否生效。现在支持 `haste`、`damageBonus`、`damageReduction`、`duration`、`buffLabel` 等数据字段；模拟器把它们应用到移动、攻击和承伤计算，并生成绿色增益环、短标签、浮动文字与事件效果。奶蛙即使治疗满血目标，也会优先施加护佑。
 
 ## 已尝试修法与证据
 
-- 已将 JSON 数据内嵌到 `index.html`，并把模块脚本改为普通脚本；`npm run check` 与本地 HTTP 冒烟通过。
-- 已把纹理加载改为非阻塞；`npm run check` 与本地 HTTP 冒烟通过。
-- 但 `index.html` 仍通过三个外部 `<script src="file:///...">` 加载运行时代码；用户 Console 证明 Chrome 仍会在 `file://` 场景阻止它们。
+- 已将 JSON、CSS 和运行时代码内嵌到 `index.html`；静态入口不含外部 `<script src>`、外部 stylesheet 或 base64 PNG。
+- 已将图集改成懒加载；静态运行时检查确认包含 `window.MEME_WAR_TEXTURE_URL`，且不包含 `data:image/png;base64,`。
+- 已加入 `manifest.webmanifest`，声明 `display: fullscreen` 与 `orientation: landscape`，并在 `index.html` 增加 `height=device-height`、横屏 meta 和首屏方向检测脚本。
+- 已通过 `npm run check`：Node 语法检查、数据检查、10 关固定种子平衡烟测、移速追击回归、辅助增益回归、静态入口检查与构建过期检查均通过。
+- 已通过 Playwright 响应式回归：844×390 横屏得到 `54px / 220px / 116px` 行高，战场 640×220、侧栏 204px、卡片底部 389px，不再被卡栏裁切；390×844 竖屏得到横屏门 `display:grid`、`#app visibility:hidden`、文档无溢出。首次 HTML DOMContentLoaded 约 37ms、传输约 146 KB，手机图集请求在约 1.84s 后才开始，之后仍能进入战斗。
 
-## 失败原因
+## 本轮可重复验证
 
-- 上一版只内嵌了数据，没有内嵌运行时代码；浏览器将外部 `file://` 脚本视为跨源请求并拦截，导致 `main.js` 没有机会执行。
+1. 在 `C:\Users\Asus\Desktop\a\meme-war-sim` 运行 `npm run check`。
+2. 运行 `npm run start`，打开 `http://127.0.0.1:4173/`。
+3. 横屏准备阶段确认卡面先出现颜色/首字占位，稍后才替换为图集；断开/改名 PNG 时仍应能进入战斗并看到几何占位。
+4. 在触控或 DevTools 移动视口中切到竖屏，确认只看到旋转门；切回横屏后确认战场恢复。点击“尝试自动横屏”时，支持的设备应进入全屏/锁定流程，不支持的设备应保持手动旋转提示。
+5. 部署嘎子/华强与蔡徐坤，确认近战能追击；部署奶蛙或圆头耄耋，确认绿色增益环、增益标签与攻击/移速变化出现。
 
-## 根因假设
+## 当前风险
 
-- 当前根因已由用户日志确认：外部脚本资源与 `file://` 的 `origin: null` 触发浏览器 CORS 限制。
+- 真实手机的屏幕旋转权限、GPU、触控坐标、安全区和网络缓存尚未在本轮实际设备验证。
+- GitHub Pages 尚未替用户仓库实际发布，首次/二次加载耗时需要用目标手机与目标网络测量。
+- WebGL2 不可用时只有可见错误提示，没有 Canvas 2D 降级。
+- 纹理失败回退保证可玩性，但视觉上会退回几何/文字占位；完整仓库必须提交 `assets/units-handdrawn-atlas.png`。
 
-## 下一個可否證驗證步驟
+## UI 审计
 
-- 让构建脚本把 CSS、运行时代码和图集都内嵌进 `index.html`，再用静态检查确认入口不含外部脚本；本地 HTTP 冒烟确认仍能进入“准备部署”。
+- Readable：8/10
+- UX：8/10
+- Accessibility：7/10
+- Commercial：9/10
+- Retention：8/10
+- Google Play Risk：4/10
 
-## 修复结果
-
-- 已将纹理加载改为后台可选任务；`init()` 不再等待它完成。
-- `bootstrap()` 异常现在会隐藏加载遮罩并给出可见失败提示，不再伪装成永久“正在加载”。
-- `scripts/build-static.mjs` 现在会将 CSS、运行时代码、JSON 数据和 PNG 图集全部内嵌到 `index.html`，不再依赖被 `file://` CORS 拦截的外部脚本。
-- `npm run check` 通过；单文件构建后本地 HTTP 真实浏览器修复后进入“准备部署”，控制台无错误。
-
-## 不准再重复的修法
-
-- 不再把可选图片、音频或其他装饰资源作为隐藏加载遮罩的无超时硬依赖。
-- 不再把“普通 `<script src>` 能在 `file://` 下加载”作为直接双击入口的前提。
-
-## 本次验证
-
-- `npm run check`：通过，13 个可部署单位与 10 个关卡数据完整。
-- Node 固定种子模拟：覆盖 10 个关卡、多波推进、远程后撤、召唤物保持距离，并为每关验证了预算内完整清场基准编队。
-- 浏览器 smoke test：WebGL2 成功启动；兵种卡、己方战斗角色、召唤物和敌方瓜摊老板均显示原创手绘图集；无控制台错误。
-
-## 已知风险
-
-- 纹理加载失败时会回退到几何占位，并在界面提示；这不是 WebGL2 不可用时的 Canvas 2D 降级。
-- 当前图集是原型级角色表现，后续可拆成逐角色动画帧并增加命中特效、音频；手机横屏布局与拖卡/拖回退款已在 844×390 浏览器视口验证，但仍需真实触控设备复测。
-
-## 本轮布局与交互回归
-
-- PC 1280×720：战场画布 1000×518，无横向溢出；窗口尺寸变化会重新执行相机适配。
-- 手机横屏 844×390：战场 608×208，右侧任务栏 236px，底部兵种卡栏 844×124，无横向溢出。
-- 交互：兵种卡拖到左侧部署区成功；已部署的华强拖回兵种卡后部署数回到 0，并显示“华强 已撤销，500 金已退回”。
-
-## 本轮数值、特效与 UI 回归
-
-- `npm run check`：通过；`check-balance.mjs` 报告 10/10 关基准编队完整清场，通关时间 18.4–64.3 秒。
-- 浏览器 1280×720：战场 1000×518，静态入口加载后无控制台 error/warn。
-- 浏览器 844×390 横屏：战场 608×208、右侧任务栏 236px、底部卡栏 844×124、卡片 104×76，文档无横向/纵向溢出。
-- 浏览器真实捕获到“第 1 波入场”“护盾”“瞬移”“召唤”上下文标签和对应事件播报；传送落点、冲锋轨迹、召唤生成环和延迟爆发均由 `src/sim.js` 生成、`src/main.js` 绘制。
-- UI 审计：Readable 8/10、UX 8/10、Accessibility 7/10、Commercial 9/10、Retention 8/10、Google Play Risk 4/10。真实手机横屏 GPU/触控和安全区尚未复测。
-
-## 继续排查时的最短路径
-
-1. 先运行 `npm run check`。
-2. 启动 `npm run start`，打开 `http://127.0.0.1:4173/`。
-3. 检查 `assets/ASSET_NOTES.md` 的图集索引与 `data/units.json` 的 `spriteIndex` 是否一致。
+尚未测试：真实手机横屏 GPU/触控、安全区、GitHub Pages 首次网络加载。

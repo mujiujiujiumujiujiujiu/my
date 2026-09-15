@@ -108,10 +108,11 @@ function createSpriteProgram(gl) {
 class NativeWebGLRenderer {
   constructor(canvas) {
     this.canvas = canvas;
+    this.isMobile = window.matchMedia?.('(pointer: coarse)').matches || Math.min(window.innerWidth, window.innerHeight) <= 900;
     this.gl = canvas.getContext('webgl2', {
       alpha: false,
-      antialias: true,
-      powerPreference: 'high-performance',
+      antialias: !this.isMobile,
+      powerPreference: this.isMobile ? 'low-power' : 'high-performance',
     });
     if (!this.gl) throw new Error('当前浏览器没有可用的 WebGL2');
 
@@ -149,6 +150,8 @@ class NativeWebGLRenderer {
   loadTexture(url) {
     return new Promise((resolve, reject) => {
       const image = new Image();
+      image.decoding = 'async';
+      image.fetchPriority = 'low';
       image.onload = () => {
         const gl = this.gl;
         const texture = gl.createTexture();
@@ -177,7 +180,7 @@ class NativeWebGLRenderer {
     const rect = this.canvas.getBoundingClientRect();
     this.width = Math.max(1, rect.width || this.canvas.clientWidth || 1);
     this.height = Math.max(1, rect.height || this.canvas.clientHeight || 1);
-    this.dpr = Math.min(window.devicePixelRatio || 1, 2);
+    this.dpr = Math.min(window.devicePixelRatio || 1, this.isMobile ? 1.25 : 1.75);
     this.canvas.width = Math.round(this.width * this.dpr);
     this.canvas.height = Math.round(this.height * this.dpr);
     this.gl.viewport(0, 0, this.canvas.width, this.canvas.height);
@@ -256,6 +259,7 @@ class NativeWebGLRenderer {
   }
 
   drawCircle(x, y, radius, color, segments = 24, alpha = 1) {
+    segments = this.isMobile ? Math.min(segments, 16) : segments;
     const vertices = [x, y];
     for (let index = 0; index <= segments; index += 1) {
       const angle = (index / segments) * Math.PI * 2;
@@ -272,6 +276,7 @@ class NativeWebGLRenderer {
   }
 
   drawRing(x, y, radius, thickness, color, segments = 32, alpha = 1) {
+    segments = this.isMobile ? Math.min(segments, 18) : segments;
     const vertices = [];
     const inner = Math.max(0.5, radius - thickness / 2);
     const outer = radius + thickness / 2;

@@ -1,7 +1,7 @@
 const { BattleSimulation, WORLD } = window.MemeWarSim;
 const { NativeWebGLRenderer } = window.MemeWarWebGL;
 
-const UNIT_TEXTURE_URL = window.MEME_WAR_TEXTURE_DATA || './assets/units-handdrawn-atlas.png';
+const UNIT_TEXTURE_URL = window.MEME_WAR_TEXTURE_URL || window.MEME_WAR_TEXTURE_DATA || './assets/units-handdrawn-atlas.png';
 const MAX_DEPLOYMENTS = 24;
 const MIN_ZOOM = 0.42;
 const MAX_ZOOM = 1.45;
@@ -17,6 +17,13 @@ const normalize = (x, y) => {
 const formatClock = (seconds) => {
   const safeSeconds = Math.max(0, Math.floor(seconds));
   return `${String(Math.floor(safeSeconds / 60)).padStart(2, '0')}:${String(safeSeconds % 60).padStart(2, '0')}`;
+};
+const getViewportSize = () => {
+  const viewport = window.visualViewport;
+  return {
+    width: Math.round((viewport?.width || window.innerWidth || document.documentElement.clientWidth) * 10) / 10,
+    height: Math.round((viewport?.height || window.innerHeight || document.documentElement.clientHeight) * 10) / 10,
+  };
 };
 
 function makeElement(tag, className, text = '') {
@@ -118,9 +125,11 @@ class MemeWarApp {
     this.speed = 1;
     this.renderTime = 0;
     this.lastFrameTime = 0;
+    this.lastLabelUpdate = -Infinity;
     this.resultShown = false;
     this.labelNodes = new Map();
     this.effectLabelNodes = new Map();
+    this.textureLoadPromise = null;
 
     this.camera = { x: WORLD.width / 2, y: WORLD.height / 2, zoom: 0.72 };
     this.elements = {
@@ -163,6 +172,8 @@ class MemeWarApp {
       toast: $('#toast'),
       loading: $('#loading'),
       webglFallback: $('#webglFallback'),
+      orientationGate: $('#orientationGate'),
+      orientationButton: $('#orientationButton'),
     };
     this.toastTimer = null;
   }
@@ -185,20 +196,40 @@ class MemeWarApp {
       return;
     }
 
-    this.renderer.loadTexture(UNIT_TEXTURE_URL).catch(() => {
-      this.showToast('手绘角色纹理加载失败，将使用几何占位。');
-    });
-
-    window.addEventListener('resize', () => {
+    const handleViewportChange = () => {
+      this.syncOrientationUi();
       if (!this.renderer) return;
       this.renderer.resize();
       this.fitCamera();
       this.render();
-    });
+    };
+    window.addEventListener('resize', handleViewportChange);
+    window.addEventListener('orientationchange', handleViewportChange);
+    window.visualViewport?.addEventListener('resize', handleViewportChange);
+    document.addEventListener('fullscreenchange', handleViewportChange);
     this.elements.loading.classList.add('hidden');
     this.logEvent({ text: '战场加载完成。挑一张卡，然后把它放进左半场。', tone: 'info' });
     this.syncUi();
+    this.syncOrientationUi();
+    if (this.isPortraitPhone()) {
+      window.setTimeout(() => this.tryLockLandscape({ requestFullscreen: false }), 0);
+    }
+    const loadTexture = () => this.loadUnitTexture();
+    if (this.renderer.isMobile) window.setTimeout(loadTexture, 1800);
+    else if (typeof window.requestIdleCallback === 'function') window.requestIdleCallback(loadTexture, { timeout: 1200 });
+    else window.setTimeout(loadTexture, 120);
     window.requestAnimationFrame((time) => this.frame(time));
+  }
+
+  loadUnitTexture() {
+    if (this.textureLoadPromise) return this.textureLoadPromise;
+    if (!this.renderer) return Promise.resolve();
+    this.textureLoadPromise = this.renderer.loadTexture(UNIT_TEXTURE_URL)
+      .then(() => this.syncUnitCardTextures())
+      .catch(() => {
+        this.showToast('手绘角色纹理加载失败，将使用几何占位。');
+      });
+    return this.textureLoadPromise;
   }
 
   populateLevelPicker() {
@@ -219,19 +250,14 @@ class MemeWarApp {
       const card = makeElement('button', 'unit-card');
       card.type = 'button';
       card.dataset.unitId = unit.id;
-      card.setAttribute('aria-label', `${unit.name}，${unit.price} 金，${unit.roleLabel}，可拖到左侧战场部署`);
+      const rangeText = unit.range > 100 ? `射程 ${unit.range}` : '近战';
+      card.setAttribute('aria-label', `${unit.name}，${unit.price} 金，${unit.roleLabel}，移速 ${Math.round(unit.spd)}，${rangeText}，可拖到左侧战场部署`);
 
       const top = makeElement('div', 'card-top');
       const glyph = makeElement('span', 'unit-glyph', unit.name.slice(0, 1));
       glyph.style.background = unit.color;
       if (Number.isInteger(unit.spriteIndex)) {
-        const spriteColumn = unit.spriteIndex % 4;
-        const spriteRow = Math.floor(unit.spriteIndex / 4);
-        glyph.textContent = '';
-        glyph.setAttribute('aria-hidden', 'true');
-        glyph.style.backgroundImage = `url("${UNIT_TEXTURE_URL}")`;
-        glyph.style.backgroundSize = '400% 400%';
-        glyph.style.backgroundPosition = `${spriteColumn * (100 / 3)}% ${spriteRow * (100 / 3)}%`;
+        glyph.dataset.spriteIndex = String(unit.spriteIndex);
       }
       const price = makeElement('span', 'unit-price', `${unit.price} 金`);
       top.append(glyph, price);
@@ -239,9 +265,11 @@ class MemeWarApp {
       const name = makeElement('div', 'unit-name', unit.name);
       const role = makeElement('div', 'unit-role', unit.roleLabel);
       const stats = makeElement('div', 'unit-stats');
-      const hp = makeElement('span', '', `❤ ${unit.hp}`);
+      const hp = makeElement('span', '', `❤${unit.hp}`);
       const atk = makeElement('b', '', unit.role === 'deployable' ? '路障' : `⚔ ${unit.atk}`);
-      stats.append(hp, atk);
+      const speed = makeElement('span', '', `↔${Math.round(unit.spd)}`);
+      const range = makeElement('span', '', unit.range > 100 ? `射程${unit.range}` : '近战');
+      stats.append(hp, atk, speed, range);
       card.append(top, name, role, stats);
       card.addEventListener('pointerdown', (event) => this.onUnitCardPointerDown(event, unit.id));
       card.addEventListener('click', () => {
@@ -254,7 +282,33 @@ class MemeWarApp {
       });
       this.elements.unitList.append(card);
     }
+    this.syncUnitCardTextures();
     this.updateUnitCards();
+  }
+
+  syncUnitCardTextures() {
+    const textureReady = Boolean(this.renderer?.spriteReady);
+    for (const card of this.elements.unitList.children) {
+      const unit = this.unitsById[card.dataset.unitId];
+      const glyph = card.querySelector('.unit-glyph');
+      if (!unit || !glyph) continue;
+      glyph.style.background = unit.color;
+      if (textureReady && Number.isInteger(unit.spriteIndex)) {
+        const spriteColumn = unit.spriteIndex % 4;
+        const spriteRow = Math.floor(unit.spriteIndex / 4);
+        glyph.textContent = '';
+        glyph.setAttribute('aria-hidden', 'true');
+        glyph.style.backgroundImage = `url("${UNIT_TEXTURE_URL}")`;
+        glyph.style.backgroundSize = '400% 400%';
+        glyph.style.backgroundPosition = `${spriteColumn * (100 / 3)}% ${spriteRow * (100 / 3)}%`;
+      } else {
+        glyph.textContent = unit.name.slice(0, 1);
+        glyph.removeAttribute('aria-hidden');
+        glyph.style.backgroundImage = 'none';
+        glyph.style.backgroundSize = '';
+        glyph.style.backgroundPosition = '';
+      }
+    }
   }
 
   bindEvents() {
@@ -273,6 +327,7 @@ class MemeWarApp {
     for (const button of document.querySelectorAll('.speed-button')) {
       button.addEventListener('click', () => this.setSpeed(Number(button.dataset.speed)));
     }
+    this.elements.orientationButton?.addEventListener('click', () => this.tryLockLandscape());
 
     this.canvas.addEventListener('contextmenu', (event) => {
       event.preventDefault();
@@ -313,7 +368,10 @@ class MemeWarApp {
       this.elements.app.classList.remove('is-dragging-deployment');
       this.updateDragDropUi();
     });
-    window.addEventListener('pointerdown', () => this.audio.unlock(), { once: true });
+    window.addEventListener('pointerdown', () => {
+      this.audio.unlock();
+      this.loadUnitTexture();
+    }, { once: true });
   }
 
   resetLevel(index = this.levelIndex) {
@@ -442,6 +500,40 @@ class MemeWarApp {
       button.classList.toggle('active', Number(button.dataset.speed) === speed);
     }
     this.syncUi();
+  }
+
+  isPortraitPhone() {
+    const { width, height } = getViewportSize();
+    const shortEdge = Math.min(width, height);
+    const hasTouchInput = navigator.maxTouchPoints > 0 || Boolean(window.matchMedia?.('(pointer: coarse)').matches);
+    return height > width && shortEdge <= 1024 && (hasTouchInput || shortEdge <= 600);
+  }
+
+  async tryLockLandscape({ requestFullscreen = true } = {}) {
+    if (requestFullscreen) this.audio.unlock();
+    if (requestFullscreen && !document.fullscreenElement && document.fullscreenEnabled && document.documentElement.requestFullscreen) {
+      try {
+        await document.documentElement.requestFullscreen();
+      } catch (error) {
+        console.info('浏览器未允许进入全屏，将继续尝试方向锁定。', error);
+      }
+    }
+    try {
+      if (window.screen?.orientation?.lock) await window.screen.orientation.lock('landscape');
+    } catch (error) {
+      console.info('浏览器未允许自动锁定横屏，请手动旋转设备。', error);
+    }
+    this.syncOrientationUi();
+  }
+
+  syncOrientationUi() {
+    const { width, height } = getViewportSize();
+    const isPortrait = height > width;
+    const isPhoneLike = Math.min(width, height) <= 1024 && (navigator.maxTouchPoints > 0 || Boolean(window.matchMedia?.('(pointer: coarse)').matches) || Math.min(width, height) <= 600);
+    const shouldGate = isPortrait && isPhoneLike;
+    document.documentElement.classList.toggle('is-portrait-phone', shouldGate);
+    document.documentElement.dataset.orientation = isPortrait ? 'portrait' : 'landscape';
+    if (this.elements.orientationGate) this.elements.orientationGate.setAttribute('aria-hidden', String(!shouldGate));
   }
 
   onUnitCardPointerDown(event, unitId) {
@@ -861,7 +953,11 @@ class MemeWarApp {
     this.drawArena();
     this.drawUnitsAndEffects();
     this.renderer.end();
-    this.updateWorldLabels();
+    const labelInterval = this.renderer.isMobile ? 0.08 : 0.033;
+    if (this.renderTime - this.lastLabelUpdate >= labelInterval) {
+      this.lastLabelUpdate = this.renderTime;
+      this.updateWorldLabels();
+    }
   }
 
   drawArena() {
@@ -1045,6 +1141,26 @@ class MemeWarApp {
       return;
     }
 
+    if (effect.type === 'buff') {
+      drawRing(radius * (0.78 + pulse * 0.14), 6, fade * 0.92);
+      drawRing(radius * 0.45, 3, fade * 0.72);
+      for (let index = 0; index < 6; index += 1) {
+        const angle = index * Math.PI / 3 + this.renderTime * 0.9;
+        const inner = radius * 0.56;
+        const outer = radius * (0.78 + pulse * 0.08);
+        renderer.drawLine(
+          effect.x + Math.cos(angle) * inner,
+          effect.y + Math.sin(angle) * inner,
+          effect.x + Math.cos(angle) * outer,
+          effect.y + Math.sin(angle) * outer,
+          4,
+          color,
+          fade * 0.7,
+        );
+      }
+      return;
+    }
+
     if (effect.type === 'mark' || effect.type === 'skill') {
       drawRing(radius, effect.type === 'mark' ? 3 : 5, fade * 0.85);
       renderer.drawCircle(effect.x, effect.y, Math.max(2, radius * 0.22), color, 20, fade * 0.12);
@@ -1089,6 +1205,7 @@ class MemeWarApp {
       if (unit.status?.stun > 0) this.renderer.drawRing(unit.x, unit.y, drawRadius + 10, 2, '#f4c66a', 14, 0.92);
       if (unit.status?.taunt > 0) this.renderer.drawRing(unit.x, unit.y, drawRadius + 13, 2, '#ff796a', 14, 0.8);
       if (unit.status?.guard > 0) this.renderer.drawRing(unit.x, unit.y, drawRadius + 9, 3, '#edf2f4', 24, 0.76);
+      if (unit.status?.supportUntil > (this.simulation?.time ?? 0)) this.renderer.drawRing(unit.x, unit.y, drawRadius + 16, 3, '#9cf6a6', 18, 0.9);
     }
   }
 
@@ -1106,9 +1223,10 @@ class MemeWarApp {
         this.worldLabels.append(label);
       }
       const isRetreating = this.phase === 'battle' && unit.alive !== false && unit.intent === 'retreat';
-      label.className = `world-label${unit.side === 'enemy' ? ' enemy' : ''}${isRetreating ? ' retreat' : ''}`;
+      const isSupported = this.phase === 'battle' && unit.alive !== false && unit.status?.supportUntil > (this.simulation?.time ?? 0);
+      label.className = `world-label${unit.side === 'enemy' ? ' enemy' : ''}${isRetreating ? ' retreat' : ''}${isSupported ? ' support' : ''}`;
       const hpText = this.phase === 'prep' ? '' : ` · ${Math.max(0, Math.ceil(unit.hp ?? 0))}`;
-      label.textContent = `${unit.data.name}${isRetreating ? ' · 后撤' : ''}${hpText}`;
+      label.textContent = `${unit.data.name}${isRetreating ? ' · 后撤' : ''}${isSupported ? ' · 增益' : ''}${hpText}`;
       const screen = this.renderer.worldToScreen(unit.x, unit.y - unit.data.radius - 30);
       label.style.left = `${screen.x}px`;
       label.style.top = `${screen.y}px`;
