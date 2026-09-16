@@ -1,7 +1,5 @@
 (function () {
 const WORLD = { width: 1600, height: 820, minX: 42, maxX: 1558, minY: 42, maxY: 778 };
-const COLLISION_GAP = 6;
-const COLLISION_ITERATIONS = 24;
 
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 const distance = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
@@ -24,11 +22,6 @@ function freshStatus() {
     delayedDamage: 0,
     delayedBy: null,
     damageReduction: 0,
-    supportHaste: 0,
-    supportDamage: 0,
-    supportDamageReduction: 0,
-    supportUntil: 0,
-    supportSource: null,
   };
 }
 
@@ -52,13 +45,13 @@ class BattleSimulation {
     this.niuGold = 0;
     this.nextId = 1;
     this.nextEffectId = 1;
+    this.nextFloatingTextId = 1;
     this.rngState = (level.id * 0x9e3779b9) >>> 0;
     this.lastCombatLogAt = -99;
-    this.wavePlans = this.buildWavePlans(level);
-    this.waveIndex = 0;
-    this.totalWaves = this.wavePlans.length;
+    this.enemyRoster = this.buildEnemyRoster(level);
+    this.enemyRosterCount = this.enemyRoster.reduce((sum, entry) => sum + entry.count, 0);
     this.buildPlayerUnits(deployments);
-    this.spawnWave(this.wavePlans[0]);
+    this.buildEnemyUnits(this.enemyRoster);
   }
 
   get aliveUnits() {
@@ -83,8 +76,8 @@ class BattleSimulation {
 
   start() {
     this.emit(`第 ${this.level.id} 关 · ${this.level.name} 开战，部署锁定。`, 'result');
-    this.emit(`第 ${this.waveIndex + 1}/${this.totalWaves} 波敌人入场，战斗会自动进行。`, 'info');
-    this.emit('清空当前波次后，下一波会立即入场，部署不会中途改变。', 'info');
+    this.emit(`敌方 ${this.enemyRosterCount} 名单位同时入场，战斗会自动进行。`, 'info');
+    this.emit('敌方全员已入场，部署不会中途改变。', 'info');
   }
 
   update(deltaSeconds) {
@@ -102,8 +95,8 @@ class BattleSimulation {
     if (this.playerCount === 0) {
       this.finish('lose');
     } else if (this.enemyCount === 0) {
-      if (!this.advanceWave()) this.finish('win');
-    } else if (this.time > 120) {
+      this.finish('win');
+    } else if (this.time > 90) {
       const playerScore = this.alivePlayers.reduce((sum, unit) => sum + unit.hp, 0);
       const enemyScore = this.aliveEnemies.reduce((sum, unit) => sum + unit.hp, 0);
       this.finish(playerScore >= enemyScore ? 'win' : 'lose', true);
@@ -119,29 +112,8 @@ class BattleSimulation {
     this.emit(outcome === 'win' ? `胜利！${survivorCount} 名己方单位还站着。` : '失败。下次把预算花在更合适的克制上。', outcome === 'win' ? 'reward' : 'danger');
   }
 
-  buildWavePlans(level) {
-    const plans = Array.isArray(level.waves) && level.waves.length > 0 ? level.waves : [level.enemies];
-    return plans
-      .map((wave) => Array.isArray(wave) ? wave : wave.entries)
-      .filter((wave) => Array.isArray(wave) && wave.length > 0);
-  }
-
-  spawnWave(entries) {
-    this.buildEnemyUnits(entries);
-    this.resolveCollisions(this.aliveUnits);
-    const count = entries.reduce((sum, entry) => sum + entry.count, 0);
-    this.addEffect('waveSpawn', 1280, WORLD.height / 2, '#ff796a', 240, 1.25, {
-      label: `第 ${this.waveIndex + 1} 波入场`,
-      count,
-    });
-  }
-
-  advanceWave() {
-    if (this.waveIndex >= this.totalWaves - 1) return false;
-    this.waveIndex += 1;
-    this.spawnWave(this.wavePlans[this.waveIndex]);
-    this.emit(`第 ${this.waveIndex + 1}/${this.totalWaves} 波开始，敌人数量：${this.wavePlans[this.waveIndex].reduce((sum, entry) => sum + entry.count, 0)}。`, 'result');
-    return true;
+  buildEnemyRoster(level) {
+    return Array.isArray(level.enemies) ? level.enemies : [];
   }
 
   buildPlayerUnits(deployments) {
@@ -157,12 +129,15 @@ class BattleSimulation {
     for (const entry of entries) {
       for (let index = 0; index < entry.count; index += 1) {
         const data = copyData(this.unitsById[entry.unitId], entry.overrides ?? {});
-        const column = order % 3;
-        const row = Math.floor(order / 3);
-        const x = 1120 + column * 122 + (row % 2) * 36;
-        const y = 190 + row * 150 + (column % 2) * 28;
+        const column = order % 4;
+        const row = Math.floor(order / 4);
+        const x = 1050 + column * 115 + (row % 2) * 28;
+        const y = 190 + row * 145 + (column % 2) * 28;
         this.units.push(this.createUnit(data, 'enemy', x, y));
-        this.addEffect('spawn', x, y, data.accent ?? data.color, data.radius * 2.2, 0.62);
+        this.addEffect('spawn', x, y, data.accent ?? data.color, data.radius * 2.2, 0.62, {
+          style: this.getVfxStyle({ data }),
+          side: 'enemy',
+        });
         order += 1;
       }
     }
@@ -180,6 +155,7 @@ class BattleSimulation {
       facing: side === 'player' ? 0 : Math.PI,
       hp: data.hp,
       maxHp: data.hp,
+      barHp: data.hp,
       alive: true,
       deadFor: 0,
       attackCd: 0.15 + this.random() * 0.65,
@@ -188,6 +164,19 @@ class BattleSimulation {
       kills: 0,
       pulse: 0,
       hitFlash: 0,
+      actionType: 'idle',
+      actionLife: 0,
+      actionDuration: 0,
+      actionDirectionX: side === 'player' ? 1 : -1,
+      actionDirectionY: 0,
+      actionTargetId: null,
+      actionPower: 0,
+      hurtLife: 0,
+      hurtDuration: 0,
+      hurtDirectionX: 0,
+      hurtDirectionY: 0,
+      hitPointX: x,
+      hitPointY: y,
       status: freshStatus(),
       intent: 'advance',
       isSummon: false,
@@ -201,6 +190,19 @@ class BattleSimulation {
     for (const unit of this.units) {
       unit.pulse = Math.max(0, unit.pulse - dt);
       unit.hitFlash = Math.max(0, unit.hitFlash - dt);
+      unit.actionLife = Math.max(0, unit.actionLife - dt);
+      unit.hurtLife = Math.max(0, unit.hurtLife - dt);
+      if (unit.actionLife <= 0) {
+        unit.actionType = 'idle';
+        unit.actionTargetId = null;
+        unit.actionPower = 0;
+      }
+      const targetBarHp = Math.max(0, unit.hp ?? 0);
+      if (unit.barHp > targetBarHp) {
+        unit.barHp = Math.max(targetBarHp, unit.barHp - unit.maxHp * dt * 2.6);
+      } else {
+        unit.barHp = Math.min(targetBarHp, unit.barHp + unit.maxHp * dt * 4.5);
+      }
       if (!unit.alive) {
         unit.deadFor += dt;
         continue;
@@ -220,7 +222,7 @@ class BattleSimulation {
       }
       if (status.delayed <= 0 && status.delayedDamage > 0) {
         const markerSource = this.findUnit(status.delayedBy);
-        this.addEffect('burst', unit.x, unit.y, '#ffe066', unit.data.radius * 2.4, 0.9, { label: '延迟爆发' });
+        this.addEffect('burst', unit.x, unit.y, '#ffe066', unit.data.radius * 2.4, 0.9, { label: '延迟爆发', style: 'delivery' });
         if (markerSource?.alive) this.applyDamage(markerSource, unit, status.delayedDamage, 'mark', 65);
         status.delayedDamage = 0;
         status.delayedBy = null;
@@ -260,22 +262,16 @@ class BattleSimulation {
     const dx = target.x - unit.x;
     const dy = target.y - unit.y;
     const distanceToTarget = Math.hypot(dx, dy);
-    const configuredAttackRange = unit.data.range + unit.data.radius * 0.35 + target.data.radius * 0.35;
-    const visibleContactRange = this.getSeparationRadius(unit) + this.getSeparationRadius(target) + COLLISION_GAP;
-    const attackRange = unit.data.range > 100 ? configuredAttackRange : Math.max(configuredAttackRange, visibleContactRange);
+    const attackRange = unit.data.range + unit.data.radius * 0.35 + target.data.radius * 0.35;
     const direction = normalize(dx, dy);
     unit.facing = Math.atan2(dy, dx);
     const keepDistance = this.shouldKeepDistance(unit);
     const preferredDistance = this.getPreferredDistance(unit, attackRange);
-    const configuredRetreat = Number(unit.data.retreatDistance);
-    const retreatThreshold = Math.max(
-      unit.data.radius + target.data.radius + 12,
-      Number.isFinite(configuredRetreat) && configuredRetreat > 0 ? configuredRetreat : preferredDistance - 16,
-    );
+    const retreatThreshold = Math.max(unit.data.radius + target.data.radius + 12, preferredDistance - 16);
 
     if (keepDistance && distanceToTarget < retreatThreshold) {
       unit.intent = 'retreat';
-      const speedMultiplier = this.getSlowMultiplier(unit) * (Number(unit.data.retreatSpeedMultiplier) || 1);
+      const speedMultiplier = (unit.status.slow > 0 ? 1 - this.getSlowAmount(unit) : 1) * 1.12;
       if (distanceToTarget <= attackRange && unit.attackCd <= 0 && unit.data.atk > 0 && unit.data.range > 100) {
         this.attack(unit, target, direction);
       }
@@ -292,7 +288,7 @@ class BattleSimulation {
       this.brakeUnit(unit, dt);
     } else {
       unit.intent = 'advance';
-      const speedMultiplier = this.getSlowMultiplier(unit) * this.getApproachSpeedMultiplier(unit, target, keepDistance);
+      const speedMultiplier = unit.status.slow > 0 ? 1 - this.getSlowAmount(unit) : 1;
       this.moveUnit(unit, direction.x, direction.y, dt, speedMultiplier);
     }
   }
@@ -310,16 +306,6 @@ class BattleSimulation {
     return Math.max(140, unit.data.range + 90);
   }
 
-  getSlowMultiplier(unit) {
-    return unit.status.slow > 0 ? 1 - this.getSlowAmount(unit) : 1;
-  }
-
-  getApproachSpeedMultiplier(unit, target, keepDistance) {
-    if (keepDistance) return Number(unit.data.approachSpeedMultiplier) || 1;
-    if (target && this.shouldKeepDistance(target)) return Number(unit.data.pursuitSpeedMultiplier) || 1.12;
-    return 1;
-  }
-
   brakeUnit(unit, dt) {
     unit.vx *= Math.max(0, 1 - dt * 10);
     unit.vy *= Math.max(0, 1 - dt * 10);
@@ -328,12 +314,15 @@ class BattleSimulation {
     this.keepInside(unit);
   }
 
+  getMoveSpeed(unit, speedMultiplier = 1) {
+    const configuredMultiplier = Number(unit.data.moveMultiplier);
+    const moveMultiplier = Number.isFinite(configuredMultiplier) && configuredMultiplier > 0 ? configuredMultiplier : 1;
+    const woundedDayunBoost = unit.data.id === 'dayun' && unit.hp / unit.maxHp < 0.4 ? 1.22 : 1;
+    return unit.data.spd * moveMultiplier * speedMultiplier * woundedDayunBoost;
+  }
+
   moveUnit(unit, directionX, directionY, dt, speedMultiplier = 1) {
-    const support = this.getActiveSupportBuff(unit);
-    const speed = unit.data.spd
-      * speedMultiplier
-      * (support.active ? 1 + support.haste : 1)
-      * (unit.data.id === 'dayun' && unit.hp / unit.maxHp < 0.4 ? 1.22 : 1);
+    const speed = this.getMoveSpeed(unit, speedMultiplier);
     const acceleration = 7.5;
     unit.vx += directionX * acceleration * speed * dt;
     unit.vy += directionY * acceleration * speed * dt;
@@ -368,22 +357,59 @@ class BattleSimulation {
 
   trySkill(unit, target) {
     const skills = unit.data.skills ?? [];
-    for (let index = 0; index < skills.length; index += 1) {
-      const skill = skills[index];
+    for (const skill of skills) {
       if ((unit.skillCds[skill.name] ?? 0) > 0) continue;
-      const used = this.useSkill(unit, target, skill, index);
+      const used = this.useSkill(unit, target, skill);
       if (used) return;
     }
   }
 
-  useSkill(unit, target, skill, index) {
+  beginAction(unit, type, target = null, duration = 0.28, power = 1) {
+    const direction = target
+      ? normalize(target.x - unit.x, target.y - unit.y)
+      : normalize(Math.cos(unit.facing ?? 0), Math.sin(unit.facing ?? 0));
+    unit.actionType = type;
+    unit.actionLife = duration;
+    unit.actionDuration = duration;
+    unit.actionDirectionX = direction.x;
+    unit.actionDirectionY = direction.y;
+    unit.actionTargetId = target?.id ?? null;
+    unit.actionPower = power;
+  }
+
+  setSkillCooldown(unit, skill) {
+    unit.skillCds[skill.name] = Math.max(0, skill.cd ?? 0);
+  }
+
+  getVfxStyle(unit) {
+    const styles = {
+      huaqiang: 'slash',
+      caixukun: 'rhythm',
+      dayun: 'heavy',
+      gazi: 'shield',
+      dagou: 'bark',
+      niulai: 'spark',
+      maodie: 'magic',
+      miaocuijiao: 'blink',
+      naima: 'heal',
+      huangsedashu: 'delivery',
+      gugugaga: 'penguin',
+      daodun: 'shield',
+      couqie: 'poke',
+      melonboss: 'melon',
+    };
+    return unit?.data?.attackStyle ?? styles[unit?.data?.id] ?? 'spark';
+  }
+
+  useSkill(unit, target, skill) {
     const enemies = this.aliveUnits.filter((candidate) => candidate.side !== unit.side);
     const allies = this.aliveUnits.filter((candidate) => candidate.side === unit.side && candidate.id !== unit.id);
     const nearbyEnemies = (center, radius) => enemies.filter((candidate) => distance(center, candidate) <= radius + candidate.data.radius * 0.25);
-    const setCooldown = () => { unit.skillCds[skill.name] = skill.cd; };
+    const setCooldown = () => this.setSkillCooldown(unit, skill);
     const displaySkill = (effectType = 'skill', meta = {}) => {
       const duration = effectType === 'skill' ? 0.48 : 1.08;
-      this.addEffect(effectType, unit.x, unit.y, unit.data.accent, skill.radius ?? 75, duration, meta);
+      this.beginAction(unit, 'skill', target, Math.min(0.42, duration * 0.7), 0.8);
+      this.addEffect(effectType, unit.x, unit.y, unit.data.accent, skill.radius ?? 75, duration, { style: skill.vfxStyle ?? this.getVfxStyle(unit), skillType: skill.type, ...meta });
       this.emit(`${unit.data.name}：${skill.name}`, 'skill');
     };
 
@@ -410,7 +436,7 @@ class BattleSimulation {
 
     if (skill.type === 'cone' && target && distance(unit, target) < skill.radius) {
       for (const candidate of nearbyEnemies(unit, skill.radius)) {
-        this.applyDamage(unit, candidate, skill.damage, 'skill', 70);
+        this.applyDamage(unit, candidate, skill.damage, 'skill', skill.knockback ?? 70);
         candidate.status.stun = Math.max(candidate.status.stun, skill.stun ?? 0);
       }
       setCooldown();
@@ -420,10 +446,10 @@ class BattleSimulation {
 
     if (skill.type === 'pulse' && target && distance(unit, target) < unit.data.range + 30) {
       for (const candidate of nearbyEnemies(target, skill.radius)) {
-        this.applyDamage(unit, candidate, skill.damage, 'aoe', 75);
-        candidate.status.slow = Math.max(candidate.status.slow, 3.2);
+        this.applyDamage(unit, candidate, skill.damage, 'aoe', skill.knockback ?? 75);
+        candidate.status.slow = Math.max(candidate.status.slow, skill.slowDuration ?? skill.duration ?? 3.2);
       }
-      unit.status.damageReduction = Math.max(unit.status.damageReduction, 2.2);
+      unit.status.damageReduction = Math.max(unit.status.damageReduction, skill.selfDamageReductionDuration ?? 2.2);
       setCooldown();
       displaySkill();
       return true;
@@ -445,7 +471,7 @@ class BattleSimulation {
     }
 
     if (skill.type === 'slowPulse' && target) {
-      for (const candidate of nearbyEnemies(target, skill.radius)) candidate.status.slow = Math.max(candidate.status.slow, 4.5);
+      for (const candidate of nearbyEnemies(target, skill.radius)) candidate.status.slow = Math.max(candidate.status.slow, skill.slowDuration ?? skill.duration ?? 4.5);
       setCooldown();
       displaySkill();
       return true;
@@ -475,8 +501,8 @@ class BattleSimulation {
       const targets = nearbyEnemies(unit, skill.radius);
       if (targets.length === 0) return false;
       for (const enemy of targets) {
-        this.applyDamage(unit, enemy, skill.damage, 'skill', 55);
-        enemy.status.fear = Math.max(enemy.status.fear, skill.stun);
+        this.applyDamage(unit, enemy, skill.damage, 'skill', skill.knockback ?? 55);
+        enemy.status.fear = Math.max(enemy.status.fear, skill.duration ?? skill.stun ?? 1.5);
       }
       setCooldown();
       displaySkill();
@@ -484,19 +510,22 @@ class BattleSimulation {
     }
 
     if (skill.type === 'aoe' && target && distance(unit, target) < unit.data.range + 70) {
-      for (const candidate of nearbyEnemies(target, skill.radius)) this.applyDamage(unit, candidate, skill.damage, 'aoe', 45);
+      for (const candidate of nearbyEnemies(target, skill.radius)) this.applyDamage(unit, candidate, skill.damage, 'aoe', skill.knockback ?? 45);
       setCooldown();
       displaySkill();
       return true;
     }
 
     if (skill.type === 'summon' && target) {
-      const summonData = copyData(this.unitsById.couqie, { name: '小橘猫', hp: 100, atk: 14, as: 2, spd: 105, range: 150, radius: 16, color: unit.data.accent, accent: unit.data.color, role: 'swarm', combatStyle: 'ranged', preferredDistance: 130, spriteIndex: 6 });
+      const summonData = copyData(this.unitsById.couqie, { name: '小橘猫', hp: 100, atk: 14, as: 2, spd: 105, moveMultiplier: 1, range: 150, radius: 16, color: unit.data.accent, accent: unit.data.color, role: 'swarm', combatStyle: 'ranged', preferredDistance: 130, spriteIndex: 6 });
       for (let count = 0; count < skill.count; count += 1) {
         const angle = count === 0 ? -0.8 : 0.8;
         const summon = this.createUnit(summonData, unit.side, unit.x + Math.cos(angle) * 48, unit.y + Math.sin(angle) * 48, { isSummon: true, ttl: skill.duration });
         this.units.push(summon);
-        this.addEffect('spawn', summon.x, summon.y, summonData.color, summonData.radius * 2.4, 0.62);
+        this.addEffect('spawn', summon.x, summon.y, summonData.color, summonData.radius * 2.4, 0.62, {
+          style: 'magic',
+          side: summon.side,
+        });
       }
       setCooldown();
       displaySkill('summon', { label: '召唤', count: skill.count });
@@ -505,38 +534,34 @@ class BattleSimulation {
     }
 
     if (skill.type === 'aoeSlow' && target && distance(unit, target) < 260) {
-      const targets = nearbyEnemies(unit, skill.radius);
-      const buffTargets = allies.filter((ally) => distance(unit, ally) <= (skill.allyRadius ?? skill.radius));
-      if (targets.length === 0 && buffTargets.length === 0) return false;
-      for (const candidate of targets) candidate.status.slow = Math.max(candidate.status.slow, 4);
-      for (const ally of buffTargets) this.applySupportBuff(ally, skill, unit);
+      for (const candidate of nearbyEnemies(unit, skill.radius)) candidate.status.slow = Math.max(candidate.status.slow, skill.slowDuration ?? skill.duration ?? 4);
       setCooldown();
-      displaySkill(this.hasSupportBuff(skill) ? 'buff' : 'skill', this.hasSupportBuff(skill) ? { label: skill.buffLabel ?? '团队增益' } : {});
+      displaySkill();
       return true;
     }
 
     if (skill.type === 'aoeDebuff' && target && distance(unit, target) < skill.radius + 80) {
-      for (const candidate of nearbyEnemies(target, skill.radius)) candidate.status.slow = Math.max(candidate.status.slow, 3.5);
+      for (const candidate of nearbyEnemies(target, skill.radius)) candidate.status.slow = Math.max(candidate.status.slow, skill.slowDuration ?? skill.duration ?? 3.5);
       setCooldown();
       displaySkill();
       return true;
     }
 
     if (skill.type === 'heal') {
-      const injured = allies
-        .slice()
-        .sort((a, b) => a.hp / a.maxHp - b.hp / b.maxHp)[0];
+      const injured = allies.filter((ally) => ally.hp < ally.maxHp * 0.92).sort((a, b) => a.hp / a.maxHp - b.hp / b.maxHp)[0];
       if (!injured) return false;
       const amount = Math.min(skill.amount, injured.maxHp - injured.hp);
-      if (amount > 0) {
-        injured.hp += amount;
-        injured.pulse = 0.55;
-        this.floatingTexts.push({ x: injured.x, y: injured.y - 38, text: `+${Math.round(amount)}`, color: '#9cf6a6', life: 0.9, maxLife: 0.9 });
-        this.addEffect('heal', injured.x, injured.y, '#9cf6a6', 68, 0.85, { label: '治疗' });
-      }
-      if (this.hasSupportBuff(skill)) this.applySupportBuff(injured, skill, unit);
+      injured.hp += amount;
+      injured.pulse = 0.55;
+      this.addFloatingText(`+${Math.round(amount)}`, injured.x, injured.y - 38, '#9cf6a6', {
+        kind: 'heal',
+        maxLife: 0.9,
+        driftY: 26,
+        offsetX: (((injured.id?.length ?? 0) * 7 + Math.round(this.time * 10)) % 11) - 5,
+      });
+      this.addEffect('heal', injured.x, injured.y, '#9cf6a6', 68, 0.85, { label: '治疗' });
       setCooldown();
-      displaySkill(this.hasSupportBuff(skill) ? 'buff' : 'skill', this.hasSupportBuff(skill) ? { label: skill.buffLabel ?? '治疗增益' } : {});
+      displaySkill();
       return true;
     }
 
@@ -544,7 +569,7 @@ class BattleSimulation {
       target.status.delayed = skill.delay;
       target.status.delayedDamage = skill.damage;
       target.status.delayedBy = unit.id;
-      this.addEffect('telegraph', target.x, target.y, '#ffe066', 44, skill.delay, { label: '延迟' });
+      this.addEffect('telegraph', target.x, target.y, '#ffe066', 44, skill.delay, { label: '延迟', style: unit.data.attackStyle ?? 'delivery' });
       setCooldown();
       displaySkill();
       return true;
@@ -552,12 +577,10 @@ class BattleSimulation {
 
     if (skill.type === 'aura') {
       const targets = nearbyEnemies(unit, skill.radius);
-      const buffTargets = allies.filter((ally) => distance(unit, ally) <= (skill.allyRadius ?? skill.radius));
-      if (targets.length === 0 && buffTargets.length === 0) return false;
-      for (const enemy of targets) enemy.status.slow = Math.max(enemy.status.slow, 2.5);
-      for (const ally of buffTargets) this.applySupportBuff(ally, skill, unit);
+      if (targets.length === 0) return false;
+      for (const enemy of targets) enemy.status.slow = Math.max(enemy.status.slow, skill.slowDuration ?? skill.duration ?? 2.5);
       setCooldown();
-      displaySkill(this.hasSupportBuff(skill) ? 'buff' : 'skill', this.hasSupportBuff(skill) ? { label: skill.buffLabel ?? '团队增益' } : {});
+      displaySkill();
       return true;
     }
 
@@ -587,71 +610,48 @@ class BattleSimulation {
     return false;
   }
 
-  hasSupportBuff(skill) {
-    return ['haste', 'damageBonus', 'damageReduction'].some((key) => Number(skill?.[key]) > 0);
-  }
-
-  getActiveSupportBuff(unit) {
-    const status = unit?.status;
-    if (!status || status.supportUntil <= this.time) return { active: false, haste: 0, damage: 0, damageReduction: 0 };
-    return {
-      active: true,
-      haste: Math.max(0, Number(status.supportHaste) || 0),
-      damage: Math.max(0, Number(status.supportDamage) || 0),
-      damageReduction: clamp(Number(status.supportDamageReduction) || 0, 0, 0.8),
-    };
-  }
-
-  applySupportBuff(target, skill, source) {
-    if (!target?.alive || !this.hasSupportBuff(skill)) return false;
-    const status = target.status;
-    if (!this.getActiveSupportBuff(target).active) {
-      status.supportHaste = 0;
-      status.supportDamage = 0;
-      status.supportDamageReduction = 0;
-    }
-    status.supportHaste = Math.max(status.supportHaste, clamp(Number(skill.haste) || 0, 0, 0.6));
-    status.supportDamage = Math.max(status.supportDamage, clamp(Number(skill.damageBonus) || 0, 0, 0.6));
-    status.supportDamageReduction = Math.max(status.supportDamageReduction, clamp(Number(skill.damageReduction) || 0, 0, 0.8));
-    status.supportUntil = Math.max(status.supportUntil, this.time + Math.max(1, Number(skill.duration) || 4));
-    status.supportSource = source?.id ?? null;
-    target.pulse = Math.max(target.pulse, 0.7);
-    const buffParts = [];
-    if (status.supportHaste > 0) buffParts.push(`移速/攻速 +${Math.round(status.supportHaste * 100)}%`);
-    if (status.supportDamage > 0) buffParts.push(`伤害 +${Math.round(status.supportDamage * 100)}%`);
-    if (status.supportDamageReduction > 0) buffParts.push(`减伤 ${Math.round(status.supportDamageReduction * 100)}%`);
-    this.floatingTexts.push({ x: target.x, y: target.y - target.data.radius - 18, text: buffParts.join(' · '), color: '#9cf6a6', life: 1.05, maxLife: 1.05 });
-    this.addEffect('buff', target.x, target.y, '#9cf6a6', Math.max(54, target.data.radius * 2.8), 1.05, { label: skill.buffLabel ?? '增益' });
-    return true;
-  }
-
   attack(attacker, target, direction) {
     attacker.attackCount += 1;
     const damage = this.getAttackDamage(attacker);
-    if (attacker.data.range > 100) {
+    attacker.facing = Math.atan2(direction.y, direction.x);
+    const ranged = attacker.data.range > 100;
+    this.beginAction(attacker, ranged ? 'rangedAttack' : 'meleeAttack', target, ranged ? 0.2 : 0.28, ranged ? 0.62 : 1);
+    this.addEffect('attack', attacker.x, attacker.y, attacker.data.accent, ranged ? 42 : Math.max(34, target.data.radius * 1.35), ranged ? 0.2 : 0.28, {
+      style: this.getVfxStyle(attacker),
+      mode: ranged ? 'ranged' : 'melee',
+      toX: target.x,
+      toY: target.y,
+      angle: attacker.facing,
+    });
+    if (ranged) {
       this.projectiles.push({
         x: attacker.x,
         y: attacker.y,
+        sourceId: attacker.id,
         targetId: target.id,
         side: attacker.side,
         speed: 560,
         damage,
         color: attacker.data.accent,
+        secondaryColor: attacker.data.color,
+        style: attacker.data.projectileStyle ?? this.getVfxStyle(attacker),
         life: 2.2,
       });
-      attacker.attackCd = 1 / Math.max(0.2, this.getAttackSpeed(attacker));
+      attacker.attackCd = 1 / Math.max(0.2, attacker.data.as);
     } else {
       this.applyDamage(attacker, target, damage, 'hit', 26 + attacker.data.atk * 0.65);
-      attacker.attackCd = 1 / Math.max(0.2, this.getAttackSpeed(attacker));
+      attacker.attackCd = 1 / Math.max(0.2, attacker.data.as);
     }
-    attacker.facing = Math.atan2(direction.y, direction.x);
 
     if (attacker.data.id === 'caixukun' && attacker.attackCount % 4 === 0) {
-      for (const candidate of this.aliveUnits.filter((unit) => unit.side !== attacker.side && distance(attacker, unit) < 105)) {
+      const comboRadius = attacker.data.comboRadius ?? 105;
+      for (const candidate of this.aliveUnits.filter((unit) => unit.side !== attacker.side && distance(target, unit) < comboRadius)) {
         this.applyDamage(attacker, candidate, 25, 'combo', 30);
-        candidate.status.slow = Math.max(candidate.status.slow, 2);
+        candidate.status.slow = Math.max(candidate.status.slow, attacker.data.comboSlowDuration ?? 2);
       }
-      this.addEffect('skill', attacker.x, attacker.y, '#c7b8ff', 105, 0.45);
+      attacker.vx -= direction.x * (attacker.data.comboBackstep ?? 160);
+      attacker.vy -= direction.y * (attacker.data.comboBackstep ?? 160);
+      this.addEffect('skill', target.x, target.y, '#c7b8ff', comboRadius, 0.45, { style: 'basketball', skillType: 'combo', label: '第四拍' });
       this.emit('蔡徐坤打出第四拍，附近单位一起吃到节奏。', 'skill');
     }
     if (this.time - this.lastCombatLogAt > 0.7 && this.random() > 0.35) {
@@ -662,8 +662,6 @@ class BattleSimulation {
 
   getAttackDamage(attacker) {
     let amount = attacker.data.atk;
-    const support = this.getActiveSupportBuff(attacker);
-    if (support.active) amount *= 1 + support.damage;
     if (attacker.data.id === 'dayun' && attacker.hp / attacker.maxHp < 0.4) amount *= 1.2;
     if (attacker.data.id === 'huaqiang' && this.random() < 0.15) amount *= 2;
     if (attacker.data.id === 'miaocuijiao' && attacker.pulse > 0) amount *= 2;
@@ -674,41 +672,59 @@ class BattleSimulation {
     return amount;
   }
 
-  getAttackSpeed(attacker) {
-    const support = this.getActiveSupportBuff(attacker);
-    return attacker.data.as * (support.active ? 1 + support.haste : 1);
-  }
-
   applyDamage(source, target, rawDamage, kind = 'hit', knockback = 0) {
     if (!target?.alive) return;
     let damage = rawDamage;
-    if (target.data.id === 'gazi') {
-      const incoming = Math.atan2((source?.y ?? target.y) - target.y, (source?.x ?? target.x) - target.x);
-      const isFront = Math.abs(angleDifference(incoming, target.facing)) < Math.PI / 2;
-      if (isFront) damage *= 0.5;
-    }
     if (target.status.guard > 0) damage *= 0.3;
     if (target.status.damageReduction > 0) damage *= 0.7;
-    const support = this.getActiveSupportBuff(target);
-    if (support.active) damage *= 1 - support.damageReduction;
     if (target.data.id === 'dayun' && target.hp / target.maxHp < 0.4) damage *= 1.15;
     damage = Math.max(1, damage);
+    const sourceDirection = normalize(target.x - (source?.x ?? target.x - 1), target.y - (source?.y ?? target.y));
+    const hitPointX = target.x - sourceDirection.x * target.data.radius * 0.38;
+    const hitPointY = target.y - sourceDirection.y * target.data.radius * 0.38;
     target.hp = Math.max(0, target.hp - damage);
     target.hitFlash = 0.16;
     target.pulse = Math.max(target.pulse, 0.22);
-    this.floatingTexts.push({ x: target.x, y: target.y - target.data.radius - 8, text: `-${Math.round(damage)}`, color: kind === 'skill' || kind === 'aoe' ? '#ffd166' : '#fff1e6', life: 0.82, maxLife: 0.82 });
+    target.hurtDuration = Math.max(target.hurtDuration ?? 0, 0.26);
+    target.hurtLife = Math.max(target.hurtLife ?? 0, 0.26);
+    target.hurtDirectionX = sourceDirection.x;
+    target.hurtDirectionY = sourceDirection.y;
+    target.hitPointX = hitPointX;
+    target.hitPointY = hitPointY;
+    const damageColor = kind === 'reflect' ? '#cde8ff' : kind === 'execute' || kind === 'combo' ? '#ffcf70' : kind === 'skill' || kind === 'aoe' || kind === 'charge' ? '#ffd166' : '#fff1e6';
+    this.addFloatingText(`-${Math.round(damage)}`, hitPointX, hitPointY - target.data.radius * 0.35, damageColor, {
+      kind: 'damage',
+      maxLife: 0.84,
+      driftY: 34,
+      offsetX: (((target.id?.length ?? 0) * 11 + (source?.attackCount ?? 0) * 5 + Math.round(this.time * 10)) % 13) - 6,
+      critical: kind === 'execute' || kind === 'combo',
+    });
+    this.addEffect('impact', hitPointX, hitPointY, source?.data?.accent ?? damageColor, Math.max(24, target.data.radius * 0.92), 0.3, {
+      style: this.getVfxStyle(source),
+      kind,
+      knockback,
+      directionX: sourceDirection.x,
+      directionY: sourceDirection.y,
+    });
     if (knockback > 0 && source) {
       const direction = normalize(target.x - source.x, target.y - source.y);
       target.vx += direction.x * knockback;
       target.vy += direction.y * knockback;
     }
     if (target.hp <= 0) this.killUnit(target, source, kind);
+    if (target.data.id === 'daodun' && target.alive && target.data.reflectDamage > 0 && source?.alive && source.data.id !== 'daodun' && kind !== 'reflect') {
+      this.addEffect('shield', target.x, target.y, '#edf2f4', target.data.radius * 1.3, 0.32, { label: '反伤', style: 'shield' });
+      this.applyDamage(target, source, target.data.reflectDamage, 'reflect', 24);
+    }
   }
 
   killUnit(target, source, reason = 'damage') {
     if (!target.alive) return;
     target.alive = false;
     target.deadFor = 0;
+    target.actionType = 'death';
+    target.actionDuration = 0.58;
+    target.actionLife = 0.58;
     target.vx = 0;
     target.vy = 0;
     if (source?.alive) {
@@ -720,9 +736,9 @@ class BattleSimulation {
       }
     }
     if (reason === 'summon_expired') {
-      this.addEffect('burst', target.x, target.y, target.data.accent ?? target.data.color, target.data.radius * 2.4, 0.82, { label: '召唤结束' });
+      this.addEffect('burst', target.x, target.y, target.data.accent ?? target.data.color, target.data.radius * 2.4, 0.82, { label: '召唤结束', style: 'magic' });
     } else {
-      this.addEffect('death', target.x, target.y, target.data.color, target.data.radius * 2.2, 0.62);
+      this.addEffect('death', target.x, target.y, target.data.color, target.data.radius * 2.2, 0.62, { style: target.data.attackStyle ?? 'spark' });
     }
     this.emit(`${target.data.name} 出局${reason === 'summon_expired' ? '（召唤时间到）' : ''}。`, 'danger');
   }
@@ -741,58 +757,40 @@ class BattleSimulation {
       projectile.x += direction.x * step;
       projectile.y += direction.y * step;
       if (distance(projectile, target) < target.data.radius + 10) {
-        const fakeSource = this.findUnitBySideNear(projectile.side, projectile.x, projectile.y);
+        const fakeSource = this.findUnit(projectile.sourceId) ?? this.findUnitBySideNear(projectile.side, projectile.x, projectile.y);
         this.applyDamage(fakeSource, target, projectile.damage, 'projectile', 32);
-        this.addEffect('hit', projectile.x, projectile.y, projectile.color, 34, 0.24);
         this.projectiles.splice(index, 1);
       }
     }
   }
 
   resolveCollisions(alive) {
-    const active = alive.filter((unit) => unit.alive && unit.data);
-    for (let iteration = 0; iteration < COLLISION_ITERATIONS; iteration += 1) {
-      let changed = false;
-      for (let firstIndex = 0; firstIndex < active.length; firstIndex += 1) {
-        const first = active[firstIndex];
-        for (let secondIndex = firstIndex + 1; secondIndex < active.length; secondIndex += 1) {
-          const second = active[secondIndex];
-          const dx = second.x - first.x;
-          const dy = second.y - first.y;
-          const length = Math.hypot(dx, dy);
-          const minimum = this.getMinimumSeparation(first, second);
-          if (length >= minimum) continue;
-          const direction = length > 0.001 ? { x: dx / length, y: dy / length } : { x: 1, y: 0 };
-          const correction = (minimum - length) * 0.5;
-          first.x -= direction.x * correction;
-          first.y -= direction.y * correction;
-          second.x += direction.x * correction;
-          second.y += direction.y * correction;
-          if (iteration === 0) {
-            first.vx -= direction.x * 1.4;
-            first.vy -= direction.y * 1.4;
-            second.vx += direction.x * 1.4;
-            second.vy += direction.y * 1.4;
-          }
-          changed = true;
-        }
+    for (let firstIndex = 0; firstIndex < alive.length; firstIndex += 1) {
+      const first = alive[firstIndex];
+      for (let secondIndex = firstIndex + 1; secondIndex < alive.length; secondIndex += 1) {
+        const second = alive[secondIndex];
+        const dx = second.x - first.x;
+        const dy = second.y - first.y;
+        const length = Math.hypot(dx, dy) || 0.01;
+        const minimum = (first.data.radius + second.data.radius) * 0.68;
+        if (length >= minimum) continue;
+        const direction = { x: dx / length, y: dy / length };
+        const correction = (minimum - length) * 0.5;
+        first.x -= direction.x * correction;
+        first.y -= direction.y * correction;
+        second.x += direction.x * correction;
+        second.y += direction.y * correction;
+        first.vx -= direction.x * 4;
+        first.vy -= direction.y * 4;
+        second.vx += direction.x * 4;
+        second.vy += direction.y * 4;
       }
-      for (const unit of active) this.keepInside(unit);
-      if (!changed) break;
     }
-    for (const unit of active) this.keepInside(unit);
-  }
-
-  getSeparationRadius(unit) {
-    return Math.max((Number(unit?.data?.radius) || 0) * 1.5, 35);
-  }
-
-  getMinimumSeparation(first, second) {
-    return this.getSeparationRadius(first) + this.getSeparationRadius(second) + COLLISION_GAP;
+    for (const unit of alive) this.keepInside(unit);
   }
 
   keepInside(unit) {
-    const padding = this.getSeparationRadius(unit);
+    const padding = unit.data.radius * 0.6;
     if (unit.x < WORLD.minX + padding) { unit.x = WORLD.minX + padding; unit.vx = Math.abs(unit.vx) * 0.45; }
     if (unit.x > WORLD.maxX - padding) { unit.x = WORLD.maxX - padding; unit.vx = -Math.abs(unit.vx) * 0.45; }
     if (unit.y < WORLD.minY + padding) { unit.y = WORLD.minY + padding; unit.vy = Math.abs(unit.vy) * 0.45; }
@@ -809,7 +807,8 @@ class BattleSimulation {
     this.effects = this.effects.filter((effect) => effect.life > 0);
     for (const text of this.floatingTexts) {
       text.life -= dt;
-      text.y -= dt * 28;
+      text.y -= dt * (text.driftY ?? 28);
+      text.x += dt * (text.driftX ?? 0);
     }
     this.floatingTexts = this.floatingTexts.filter((text) => text.life > 0);
   }
@@ -828,6 +827,21 @@ class BattleSimulation {
       life: safeDuration,
     });
     if (this.effects.length > 96) this.effects.splice(0, this.effects.length - 96);
+  }
+
+  addFloatingText(text, x, y, color, meta = {}) {
+    const maxLife = Math.max(0.2, meta.maxLife ?? 0.82);
+    this.floatingTexts.push({
+      id: `floating-${this.nextFloatingTextId++}`,
+      ...meta,
+      x,
+      y,
+      text,
+      color,
+      life: maxLife,
+      maxLife,
+    });
+    if (this.floatingTexts.length > 64) this.floatingTexts.splice(0, this.floatingTexts.length - 64);
   }
 
   findUnit(id) {

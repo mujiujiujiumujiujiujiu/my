@@ -1,18 +1,41 @@
 const { BattleSimulation, WORLD } = window.MemeWarSim;
 const { NativeWebGLRenderer } = window.MemeWarWebGL;
 
-const UNIT_TEXTURE_URL = window.MEME_WAR_TEXTURE_URL || window.MEME_WAR_TEXTURE_DATA || './assets/units-handdrawn-atlas-mobile.webp';
+const UNIT_TEXTURE_URL = window.MEME_WAR_TEXTURE_DATA || './assets/units-handdrawn-atlas.png';
+const BACKGROUND_TEXTURE_URL = window.MEME_WAR_BACKGROUND_DATA || './assets/battlefield-watercolor-bg.png';
+const UNIT_TEXTURE_LOW_URL = window.MEME_WAR_TEXTURE_LOW_DATA || null;
+const BACKGROUND_TEXTURE_LOW_URL = window.MEME_WAR_BACKGROUND_LOW_DATA || null;
 const MAX_DEPLOYMENTS = 24;
-const MIN_ZOOM = 0.24;
+const MIN_ZOOM = 0.42;
+const MOBILE_MIN_ZOOM = 0.22;
 const MAX_ZOOM = 1.45;
 const PLAYER_ZONE_RIGHT = 760;
 const PLAYER_SAFE_MARGIN = 48;
-const DEPLOYMENT_GAP = 6;
-const IS_FILE_PROTOCOL = window.location.protocol === 'file:';
+const PLAYER_DEPLOY_TOP = 120;
+const PLAYER_DEPLOY_BOTTOM = 610;
+const SKILL_TYPE_ICONS = Object.freeze({
+  dash: '↗',
+  execute: '✦',
+  cone: '◒',
+  pulse: '◎',
+  charge: '➤',
+  slowPulse: '≋',
+  guard: '◇',
+  taunt: '!',
+  fear: '◉',
+  aoe: '✹',
+  summon: '✚',
+  aoeSlow: '≋',
+  aoeDebuff: '≋',
+  heal: '＋',
+  delayed: '◌',
+  aura: '◍',
+  blink: '✧',
+  mark: '◆',
+});
 
 const $ = (selector) => document.querySelector(selector);
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
-const getUnitFootprintRadius = (unit) => Math.max((Number(unit?.radius) || 0) * 1.5, 35);
 const normalize = (x, y) => {
   const length = Math.hypot(x, y) || 1;
   return { x: x / length, y: y / length };
@@ -21,13 +44,31 @@ const formatClock = (seconds) => {
   const safeSeconds = Math.max(0, Math.floor(seconds));
   return `${String(Math.floor(safeSeconds / 60)).padStart(2, '0')}:${String(safeSeconds % 60).padStart(2, '0')}`;
 };
-const getViewportSize = () => {
-  const viewport = window.visualViewport;
+
+function getViewportMetrics() {
+  const width = Math.max(1, Number(window.visualViewport?.width) || window.innerWidth || 1);
+  const height = Math.max(1, Number(window.visualViewport?.height) || window.innerHeight || 1);
   return {
-    width: Math.round((viewport?.width || window.innerWidth || document.documentElement.clientWidth) * 10) / 10,
-    height: Math.round((viewport?.height || window.innerHeight || document.documentElement.clientHeight) * 10) / 10,
+    width,
+    height,
+    longEdge: Math.max(width, height),
+    shortEdge: Math.min(width, height),
+    isLandscape: width >= height,
   };
-};
+}
+
+function isConstrainedDevice() {
+  const connection = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+  return Boolean(connection?.saveData) || ['slow-2g', '2g'].includes(connection?.effectiveType);
+}
+
+function getInitialQualityTier() {
+  const memoryLimited = Number.isFinite(navigator.deviceMemory) && navigator.deviceMemory <= 2;
+  const { shortEdge } = getViewportMetrics();
+  if (isConstrainedDevice() || memoryLimited || shortEdge < 600) return 'low';
+  if (shortEdge < 900) return 'medium';
+  return 'medium';
+}
 
 function makeElement(tag, className, text = '') {
   const element = document.createElement(tag);
@@ -106,7 +147,6 @@ class MemeWarApp {
     this.levels = levelsData.levels;
     this.audio = new TinyAudio();
     this.canvas = $('#gameCanvas');
-    this.worldSprites = $('#worldSprites');
     this.worldLabels = $('#worldLabels');
     this.renderer = null;
     this.simulation = null;
@@ -120,6 +160,7 @@ class MemeWarApp {
     this.draggedDeployment = null;
     this.cardPointer = null;
     this.draggedUnit = null;
+    this.dockScrollDrag = null;
     this.suppressCardClick = false;
     this.suppressCardClickTimer = null;
     this.hoverWorld = null;
@@ -127,18 +168,23 @@ class MemeWarApp {
     this.slowInput = false;
     this.paused = false;
     this.speed = 1;
+    this.viewport = getViewportMetrics();
+    this.layoutResizeObserver = null;
+    this.panelCollapsed = false;
+    this.initialQualityTier = getInitialQualityTier();
+    this.unitTextureUrl = null;
     this.renderTime = 0;
     this.lastFrameTime = 0;
-    this.lastLabelUpdate = -Infinity;
     this.resultShown = false;
     this.labelNodes = new Map();
     this.effectLabelNodes = new Map();
-    this.spriteNodes = new Map();
-    this.textureLoadPromise = null;
+    this.floatingTextNodes = new Map();
 
     this.camera = { x: WORLD.width / 2, y: WORLD.height / 2, zoom: 0.72 };
     this.elements = {
       app: $('#app'),
+      battlefieldShell: $('#battlefieldShell'),
+      panelToggle: $('#panelToggle'),
       phaseLabel: $('#phaseLabel'),
       budgetLabel: $('#budgetLabel'),
       levelSelect: $('#levelSelect'),
@@ -151,7 +197,7 @@ class MemeWarApp {
       levelSubtitle: $('#levelSubtitle'),
       levelNumber: $('#levelNumber'),
       levelTip: $('#levelTip'),
-      waveReadout: $('#waveReadout'),
+      enemyReadout: $('#enemyReadout'),
       battleClock: $('#battleClock'),
       playerCount: $('#playerCount'),
       enemyCount: $('#enemyCount'),
@@ -177,13 +223,13 @@ class MemeWarApp {
       toast: $('#toast'),
       loading: $('#loading'),
       webglFallback: $('#webglFallback'),
-      orientationGate: $('#orientationGate'),
-      orientationButton: $('#orientationButton'),
     };
     this.toastTimer = null;
   }
 
   async init() {
+    this.updateViewportState();
+    this.setInfoPanelCollapsed(false);
     this.populateLevelPicker();
     this.populateUnitDock();
     this.bindEvents();
@@ -191,6 +237,7 @@ class MemeWarApp {
 
     try {
       this.renderer = new NativeWebGLRenderer(this.canvas);
+      this.renderer.setQuality(this.initialQualityTier);
       this.fitCamera();
     } catch (error) {
       console.error(error);
@@ -202,39 +249,102 @@ class MemeWarApp {
     }
 
     const handleViewportChange = () => {
-      this.syncOrientationUi();
-      if (!this.renderer) return;
-      this.renderer.resize();
-      this.fitCamera();
-      this.render();
+      this.updateViewportState();
+      this.syncRendererToLayout({ preserveFocus: this.phase !== 'prep' });
     };
     window.addEventListener('resize', handleViewportChange);
     window.addEventListener('orientationchange', handleViewportChange);
     window.visualViewport?.addEventListener('resize', handleViewportChange);
-    document.addEventListener('fullscreenchange', handleViewportChange);
+    if (window.ResizeObserver && this.elements.battlefieldShell) {
+      this.layoutResizeObserver = new ResizeObserver(() => {
+        this.syncRendererToLayout({ preserveFocus: this.phase !== 'prep' });
+      });
+      this.layoutResizeObserver.observe(this.elements.battlefieldShell);
+    }
     this.elements.loading.classList.add('hidden');
     this.logEvent({ text: '战场加载完成。挑一张卡，然后把它放进左半场。', tone: 'info' });
     this.syncUi();
-    this.syncOrientationUi();
-    if (this.isPortraitPhone()) {
-      window.setTimeout(() => this.tryLockLandscape({ requestFullscreen: false }), 0);
-    }
-    const loadTexture = () => this.loadUnitTexture();
-    if (this.renderer.isMobile) window.setTimeout(loadTexture, 1800);
-    else if (typeof window.requestIdleCallback === 'function') window.requestIdleCallback(loadTexture, { timeout: 1200 });
-    else window.setTimeout(loadTexture, 120);
+    this.render();
+    this.scheduleProgressiveAssets();
     window.requestAnimationFrame((time) => this.frame(time));
   }
 
-  loadUnitTexture() {
-    if (this.textureLoadPromise) return this.textureLoadPromise;
-    if (!this.renderer) return Promise.resolve();
-    this.textureLoadPromise = this.renderer.loadTexture(UNIT_TEXTURE_URL)
-      .then(() => this.syncUnitCardTextures())
-      .catch(() => {
-        if (!IS_FILE_PROTOCOL) this.showToast('手绘角色纹理加载失败，将使用几何占位。');
-      });
-    return this.textureLoadPromise;
+  scheduleProgressiveAssets() {
+    const connection = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+    const constrained = Boolean(connection?.saveData) || ['slow-2g', '2g'].includes(connection?.effectiveType);
+    const schedule = window.requestIdleCallback
+      ? (callback) => window.requestIdleCallback(callback, { timeout: 1200 })
+      : (callback) => window.setTimeout(callback, 90);
+
+    schedule(async () => {
+      if (!this.renderer) return;
+      if (UNIT_TEXTURE_LOW_URL) {
+        await this.renderer.loadTexture(UNIT_TEXTURE_LOW_URL).catch(() => {});
+        if (this.renderer.spriteReady) {
+          this.unitTextureUrl = UNIT_TEXTURE_LOW_URL;
+          this.applyUnitGlyphTextures();
+        }
+      }
+      if (BACKGROUND_TEXTURE_LOW_URL) await this.renderer.loadBackgroundTexture(BACKGROUND_TEXTURE_LOW_URL).catch(() => {});
+      this.render();
+
+      if (constrained) return;
+      const textureResults = await Promise.allSettled([
+        this.renderer.loadTexture(UNIT_TEXTURE_URL),
+        this.renderer.loadBackgroundTexture(BACKGROUND_TEXTURE_URL),
+      ]);
+      if (textureResults[0]?.status === 'fulfilled') {
+        this.unitTextureUrl = UNIT_TEXTURE_URL;
+        this.applyUnitGlyphTextures();
+      }
+      if (textureResults.some((result) => result.status === 'rejected')) {
+        this.showToast('部分高清素材加载失败，已保留轻量 WebGL 画面。');
+      }
+      this.renderer.setQuality(isConstrainedDevice() || (Number.isFinite(navigator.deviceMemory) && navigator.deviceMemory <= 2) ? 'low' : 'high');
+      this.render();
+    });
+  }
+
+  updateViewportState() {
+    const nextViewport = getViewportMetrics();
+    const isPhoneViewport = nextViewport.shortEdge <= 600 && nextViewport.longEdge <= 1400;
+    const shouldAutoLandscape = isPhoneViewport && !nextViewport.isLandscape;
+    this.viewport = nextViewport;
+    document.documentElement.style.setProperty('--viewport-long-edge', `${nextViewport.longEdge}px`);
+    document.documentElement.style.setProperty('--viewport-short-edge', `${nextViewport.shortEdge}px`);
+    this.elements.app.classList.toggle('is-auto-landscape', shouldAutoLandscape);
+  }
+
+  get isCompactLandscape() {
+    return Boolean(this.viewport?.isLandscape && this.viewport.shortEdge <= 600 && this.viewport.longEdge <= 1400);
+  }
+
+  get isAutoLandscape() {
+    return Boolean(this.viewport && !this.viewport.isLandscape && this.viewport.shortEdge <= 600 && this.viewport.longEdge <= 1400);
+  }
+
+  getMinimumZoom() {
+    return this.isCompactLandscape || this.isAutoLandscape ? MOBILE_MIN_ZOOM : MIN_ZOOM;
+  }
+
+  setInfoPanelCollapsed(collapsed) {
+    this.panelCollapsed = Boolean(collapsed);
+    this.elements.app.classList.toggle('is-panel-collapsed', this.panelCollapsed);
+    if (this.elements.panelToggle) {
+      this.elements.panelToggle.textContent = this.panelCollapsed ? '展开' : '收起';
+      this.elements.panelToggle.setAttribute('aria-expanded', String(!this.panelCollapsed));
+    }
+  }
+
+  toggleInfoPanel() {
+    this.setInfoPanelCollapsed(!this.panelCollapsed);
+  }
+
+  syncRendererToLayout({ preserveFocus = false } = {}) {
+    if (!this.renderer) return;
+    this.renderer.resize();
+    this.fitCamera({ preserveFocus });
+    this.render();
   }
 
   populateLevelPicker() {
@@ -255,27 +365,33 @@ class MemeWarApp {
       const card = makeElement('button', 'unit-card');
       card.type = 'button';
       card.dataset.unitId = unit.id;
-      const rangeText = unit.range > 100 ? `射程 ${unit.range}` : '近战';
-      card.setAttribute('aria-label', `${unit.name}，${unit.price} 金，${unit.roleLabel}，移速 ${Math.round(unit.spd)}，${rangeText}，可拖到左侧战场部署`);
+      const skillSummary = (unit.skills ?? []).map((skill) => `${SKILL_TYPE_ICONS[skill.type] ?? '·'} ${skill.name}`).join(' · ') || '基础攻击';
+      card.setAttribute('aria-label', `${unit.name}，${unit.price} 金，${unit.roleLabel}，技能：${skillSummary}，可拖到左侧战场部署`);
 
       const top = makeElement('div', 'card-top');
       const glyph = makeElement('span', 'unit-glyph', unit.name.slice(0, 1));
       glyph.style.background = unit.color;
       if (Number.isInteger(unit.spriteIndex)) {
+        const spriteColumn = unit.spriteIndex % 4;
+        const spriteRow = Math.floor(unit.spriteIndex / 4);
+        glyph.textContent = '';
+        glyph.setAttribute('aria-hidden', 'true');
         glyph.dataset.spriteIndex = String(unit.spriteIndex);
+        glyph.style.backgroundSize = '400% 400%';
+        glyph.style.backgroundPosition = `${spriteColumn * (100 / 3)}% ${spriteRow * (100 / 3)}%`;
       }
       const price = makeElement('span', 'unit-price', `${unit.price} 金`);
       top.append(glyph, price);
 
       const name = makeElement('div', 'unit-name', unit.name);
       const role = makeElement('div', 'unit-role', unit.roleLabel);
+      const skillLine = makeElement('div', 'unit-skill-line', skillSummary);
+      skillLine.title = `技能：${skillSummary}`;
       const stats = makeElement('div', 'unit-stats');
-      const hp = makeElement('span', '', `❤${unit.hp}`);
+      const hp = makeElement('span', '', `❤ ${unit.hp}`);
       const atk = makeElement('b', '', unit.role === 'deployable' ? '路障' : `⚔ ${unit.atk}`);
-      const speed = makeElement('span', '', `↔${Math.round(unit.spd)}`);
-      const range = makeElement('span', '', unit.range > 100 ? `射程${unit.range}` : '近战');
-      stats.append(hp, atk, speed, range);
-      card.append(top, name, role, stats);
+      stats.append(hp, atk);
+      card.append(top, name, role, skillLine, stats);
       card.addEventListener('pointerdown', (event) => this.onUnitCardPointerDown(event, unit.id));
       card.addEventListener('click', () => {
         if (this.suppressCardClick) {
@@ -287,33 +403,13 @@ class MemeWarApp {
       });
       this.elements.unitList.append(card);
     }
-    this.syncUnitCardTextures();
     this.updateUnitCards();
+    this.applyUnitGlyphTextures();
   }
 
-  syncUnitCardTextures() {
-    const textureReady = Boolean(this.renderer?.spriteReady);
-    const textureAvailable = textureReady || IS_FILE_PROTOCOL;
-    for (const card of this.elements.unitList.children) {
-      const unit = this.unitsById[card.dataset.unitId];
-      const glyph = card.querySelector('.unit-glyph');
-      if (!unit || !glyph) continue;
-      glyph.style.background = unit.color;
-      if (textureAvailable && Number.isInteger(unit.spriteIndex)) {
-        const spriteColumn = unit.spriteIndex % 4;
-        const spriteRow = Math.floor(unit.spriteIndex / 4);
-        glyph.textContent = '';
-        glyph.setAttribute('aria-hidden', 'true');
-        glyph.style.backgroundImage = `url("${UNIT_TEXTURE_URL}")`;
-        glyph.style.backgroundSize = '400% 400%';
-        glyph.style.backgroundPosition = `${spriteColumn * (100 / 3)}% ${spriteRow * (100 / 3)}%`;
-      } else {
-        glyph.textContent = unit.name.slice(0, 1);
-        glyph.removeAttribute('aria-hidden');
-        glyph.style.backgroundImage = 'none';
-        glyph.style.backgroundSize = '';
-        glyph.style.backgroundPosition = '';
-      }
+  applyUnitGlyphTextures() {
+    for (const glyph of this.elements.unitList.querySelectorAll('.unit-glyph[data-sprite-index]')) {
+      glyph.style.backgroundImage = this.unitTextureUrl ? `url("${this.unitTextureUrl}")` : 'none';
     }
   }
 
@@ -333,7 +429,8 @@ class MemeWarApp {
     for (const button of document.querySelectorAll('.speed-button')) {
       button.addEventListener('click', () => this.setSpeed(Number(button.dataset.speed)));
     }
-    this.elements.orientationButton?.addEventListener('click', () => this.tryLockLandscape());
+    this.elements.unitList.addEventListener('pointerdown', (event) => this.onUnitListPointerDown(event));
+    this.elements.panelToggle?.addEventListener('click', () => this.toggleInfoPanel());
 
     this.canvas.addEventListener('contextmenu', (event) => {
       event.preventDefault();
@@ -374,10 +471,7 @@ class MemeWarApp {
       this.elements.app.classList.remove('is-dragging-deployment');
       this.updateDragDropUi();
     });
-    window.addEventListener('pointerdown', () => {
-      this.audio.unlock();
-      this.loadUnitTexture();
-    }, { once: true });
+    window.addEventListener('pointerdown', () => this.audio.unlock(), { once: true });
   }
 
   resetLevel(index = this.levelIndex) {
@@ -391,6 +485,7 @@ class MemeWarApp {
     this.draggedDeployment = null;
     this.cardPointer = null;
     this.draggedUnit = null;
+    this.dockScrollDrag = null;
     this.suppressCardClick = false;
     window.clearTimeout(this.suppressCardClickTimer);
     this.suppressCardClickTimer = null;
@@ -400,10 +495,11 @@ class MemeWarApp {
     this.paused = false;
     this.resultShown = false;
     this.camera = { x: WORLD.width / 2, y: WORLD.height / 2, zoom: 0.72 };
-    this.fitCamera();
     this.elements.app.classList.remove('phase-battle', 'phase-result');
     this.elements.app.classList.add('phase-prep');
+    this.setInfoPanelCollapsed(false);
     this.elements.app.classList.remove('is-dragging-unit', 'drag-valid', 'is-dragging-deployment');
+    this.syncRendererToLayout();
     this.updateDragDropUi();
     this.elements.resultOverlay.classList.add('hidden');
     this.elements.levelSelect.value = String(this.levelIndex);
@@ -447,14 +543,14 @@ class MemeWarApp {
     for (const entry of this.level.enemies) {
       for (let index = 0; index < entry.count; index += 1) {
         const data = { ...this.unitsById[entry.unitId], ...(entry.overrides ?? {}) };
-        const column = order % 3;
-        const row = Math.floor(order / 3);
+        const column = order % 4;
+        const row = Math.floor(order / 4);
         result.push({
           id: `enemy-preview-${order}`,
           side: 'enemy',
           data,
-          x: 1120 + column * 122 + (row % 2) * 36,
-          y: 190 + row * 150 + (column % 2) * 28,
+          x: 1050 + column * 115 + (row % 2) * 28,
+          y: 190 + row * 145 + (column % 2) * 28,
           hp: data.hp,
           maxHp: data.hp,
           alive: true,
@@ -478,6 +574,7 @@ class MemeWarApp {
     this.selectedUnitId = null;
     this.cardPointer = null;
     this.draggedUnit = null;
+    this.dockScrollDrag = null;
     this.draggedDeployment = null;
     this.suppressCardClick = false;
     window.clearTimeout(this.suppressCardClickTimer);
@@ -488,8 +585,10 @@ class MemeWarApp {
     this.simulation.start();
     this.elements.app.classList.remove('phase-prep');
     this.elements.app.classList.add('phase-battle');
+    this.setInfoPanelCollapsed(true);
     this.audio.blip(460, 0.12, 'triangle', 0.035);
     this.syncUi();
+    this.syncRendererToLayout({ preserveFocus: true });
   }
 
   togglePause() {
@@ -508,41 +607,6 @@ class MemeWarApp {
     this.syncUi();
   }
 
-  isPortraitPhone() {
-    const { width, height } = getViewportSize();
-    const shortEdge = Math.min(width, height);
-    const hasTouchInput = navigator.maxTouchPoints > 0 || Boolean(window.matchMedia?.('(pointer: coarse)').matches);
-    return height > width && shortEdge <= 1024 && (hasTouchInput || shortEdge <= 600);
-  }
-
-  async tryLockLandscape({ requestFullscreen = true } = {}) {
-    if (requestFullscreen) this.audio.unlock();
-    if (requestFullscreen && !document.fullscreenElement && document.fullscreenEnabled && document.documentElement.requestFullscreen) {
-      try {
-        await document.documentElement.requestFullscreen();
-      } catch (error) {
-        console.info('浏览器未允许进入全屏，将继续尝试方向锁定。', error);
-      }
-    }
-    try {
-      if (window.screen?.orientation?.lock) await window.screen.orientation.lock('landscape');
-    } catch (error) {
-      console.info('浏览器未允许自动锁定横屏，请手动旋转设备。', error);
-    }
-    this.syncOrientationUi();
-  }
-
-  syncOrientationUi() {
-    const { width, height } = getViewportSize();
-    const isPortrait = height > width;
-    const isPhoneLike = Math.min(width, height) <= 1024 && (navigator.maxTouchPoints > 0 || Boolean(window.matchMedia?.('(pointer: coarse)').matches) || Math.min(width, height) <= 600);
-    const shouldVirtualize = isPortrait && isPhoneLike;
-    document.documentElement.classList.toggle('is-virtual-landscape', shouldVirtualize);
-    document.documentElement.classList.remove('is-portrait-phone');
-    document.documentElement.dataset.orientation = shouldVirtualize ? 'virtual-landscape' : 'landscape';
-    if (this.elements.orientationGate) this.elements.orientationGate.setAttribute('aria-hidden', 'true');
-  }
-
   onUnitCardPointerDown(event, unitId) {
     if (this.phase !== 'prep' || event.button !== 0) return;
     const unit = this.unitsById[unitId];
@@ -552,53 +616,68 @@ class MemeWarApp {
       pointerId: event.pointerId,
       startX: event.clientX,
       startY: event.clientY,
+      cardElement: event.currentTarget,
+    };
+  }
+
+  onUnitListPointerDown(event) {
+    if (this.phase !== 'prep' || event.button !== 0) return;
+    this.dockScrollDrag = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
       startScrollLeft: this.elements.unitList.scrollLeft,
-      scrolling: false,
+      startScrollTop: this.elements.unitList.scrollTop,
+      moved: false,
     };
   }
 
   onGlobalPointerMove(event) {
-    if (this.cardPointer?.pointerId !== event.pointerId && this.draggedUnit?.pointerId !== event.pointerId) return;
+    const isDockPointer = this.dockScrollDrag?.pointerId === event.pointerId;
+    if (!isDockPointer && this.cardPointer?.pointerId !== event.pointerId && this.draggedUnit?.pointerId !== event.pointerId) return;
     if (this.phase !== 'prep') {
       this.cardPointer = null;
       this.finishUnitCardDrag();
       return;
     }
 
-    if (this.cardPointer?.scrolling) {
-      const scrollDelta = this.isVirtualLandscape()
-        ? event.clientY - this.cardPointer.startY
-        : event.clientX - this.cardPointer.startX;
-      const maxScroll = Math.max(0, this.elements.unitList.scrollWidth - this.elements.unitList.clientWidth);
-      this.elements.unitList.scrollLeft = clamp(this.cardPointer.startScrollLeft - scrollDelta, 0, maxScroll);
-      event.preventDefault();
-      return;
-    }
-
-    if (!this.draggedUnit) {
-      const startPoint = this.getInputPoint({
-        clientX: this.cardPointer.startX,
-        clientY: this.cardPointer.startY,
-      });
-      const currentPoint = this.getInputPoint(event);
-      const dx = currentPoint.x - startPoint.x;
-      const dy = currentPoint.y - startPoint.y;
-      if (Math.hypot(dx, dy) < 10) return;
-      const stillInCardList = this.isPointInside(this.elements.unitList, event);
-      const physicalScrollDelta = this.isVirtualLandscape()
-        ? event.clientY - this.cardPointer.startY
-        : event.clientX - this.cardPointer.startX;
-      const physicalCrossDelta = this.isVirtualLandscape()
-        ? event.clientX - this.cardPointer.startX
-        : event.clientY - this.cardPointer.startY;
-      if (event.pointerType === 'touch' && this.isVirtualLandscape() && stillInCardList && Math.abs(physicalScrollDelta) >= Math.abs(physicalCrossDelta)) {
-        this.cardPointer.scrolling = true;
-        const maxScroll = Math.max(0, this.elements.unitList.scrollWidth - this.elements.unitList.clientWidth);
-        this.elements.unitList.scrollLeft = clamp(this.cardPointer.startScrollLeft - physicalScrollDelta, 0, maxScroll);
+    if (isDockPointer && !this.draggedUnit) {
+      const { dx: dockDx, dy: dockDy } = this.getPointerDelta(event, this.dockScrollDrag.startX, this.dockScrollDrag.startY);
+      const pointerStillInDock = this.isPointInside(this.elements.unitList, event);
+      if (this.dockScrollDrag.moved && !pointerStillInDock && this.cardPointer) {
+        this.dockScrollDrag.moved = false;
+        this.elements.unitList.classList.remove('is-dock-dragging');
+      }
+      const verticalRail = this.isVerticalUnitRail;
+      const scrollDelta = verticalRail ? dockDy : dockDx;
+      const crossDelta = verticalRail ? dockDx : dockDy;
+      if (!this.dockScrollDrag.moved && Math.hypot(dockDx, dockDy) >= 10 && Math.abs(scrollDelta) > Math.abs(crossDelta) && (event.pointerType !== 'touch' || pointerStillInDock)) {
+        this.dockScrollDrag.moved = true;
+        this.suppressCardClick = true;
+        window.clearTimeout(this.suppressCardClickTimer);
+        this.suppressCardClickTimer = window.setTimeout(() => { this.suppressCardClick = false; }, 700);
+        this.elements.unitList.classList.add('is-dock-dragging');
+      }
+      if (this.dockScrollDrag.moved && pointerStillInDock) {
+        if (verticalRail) {
+          this.elements.unitList.scrollTop = this.dockScrollDrag.startScrollTop - dockDy;
+        } else {
+          this.elements.unitList.scrollLeft = this.dockScrollDrag.startScrollLeft - dockDx;
+        }
         event.preventDefault();
         return;
       }
-      if (event.pointerType === 'touch' && !this.isVirtualLandscape() && stillInCardList && Math.abs(dx) > Math.abs(dy)) return;
+    }
+
+    if (!this.cardPointer && !this.draggedUnit) return;
+
+    if (!this.draggedUnit) {
+      const { dx, dy } = this.getPointerDelta(event, this.cardPointer.startX, this.cardPointer.startY);
+      if (Math.hypot(dx, dy) < 10) return;
+      const verticalRail = this.isVerticalUnitRail;
+      const cardDragDelta = verticalRail ? dx : dy;
+      const cardScrollDelta = verticalRail ? dy : dx;
+      if (event.pointerType === 'touch' && Math.abs(cardScrollDelta) > Math.abs(cardDragDelta)) return;
       const unit = this.unitsById[this.cardPointer.unitId];
       if (!unit || this.budgetRemaining < unit.price) {
         this.cardPointer = null;
@@ -606,6 +685,7 @@ class MemeWarApp {
       }
       this.draggedUnit = { ...this.cardPointer };
       this.cardPointer = null;
+      this.draggedUnit.cardElement?.setPointerCapture?.(event.pointerId);
       this.selectedUnitId = unit.id;
       this.suppressCardClick = true;
       window.clearTimeout(this.suppressCardClickTimer);
@@ -620,7 +700,10 @@ class MemeWarApp {
     event.preventDefault();
     if (this.isPointInside(this.canvas, event)) {
       this.hoverWorld = this.pointerToWorld(event);
-      this.elements.app.classList.toggle('drag-valid', this.isValidPlacement(this.hoverWorld.x, this.hoverWorld.y, this.unitsById[this.draggedUnit.unitId]));
+      const dragUnit = this.unitsById[this.draggedUnit.unitId];
+      const dragBounds = this.getDeploymentBounds(dragUnit);
+      const safeHoverY = clamp(this.hoverWorld.y, dragBounds.minY, dragBounds.maxY);
+      this.elements.app.classList.toggle('drag-valid', this.isValidPlacement(this.hoverWorld.x, safeHoverY, dragUnit));
     } else {
       this.hoverWorld = null;
       this.elements.app.classList.remove('drag-valid');
@@ -628,17 +711,19 @@ class MemeWarApp {
   }
 
   onGlobalPointerUp(event) {
-    if (this.cardPointer?.pointerId === event.pointerId) {
-      const wasScrolling = this.cardPointer.scrolling;
+    if (this.dockScrollDrag?.pointerId === event.pointerId && this.dockScrollDrag.moved && !this.draggedUnit) {
+      this.dockScrollDrag = null;
       this.cardPointer = null;
-      if (wasScrolling) {
-        this.suppressCardClick = true;
-        window.clearTimeout(this.suppressCardClickTimer);
-        this.suppressCardClickTimer = window.setTimeout(() => {
-          this.suppressCardClick = false;
-        }, 250);
-        event.preventDefault();
-      }
+      this.elements.unitList.classList.remove('is-dock-dragging');
+      this.suppressCardClick = false;
+      window.clearTimeout(this.suppressCardClickTimer);
+      this.suppressCardClickTimer = null;
+      event.preventDefault();
+      return;
+    }
+    if (this.cardPointer?.pointerId === event.pointerId) {
+      this.cardPointer = null;
+      this.dockScrollDrag = null;
       return;
     }
     if (this.draggedUnit?.pointerId !== event.pointerId) return;
@@ -659,8 +744,10 @@ class MemeWarApp {
   finishUnitCardDrag() {
     this.cardPointer = null;
     this.draggedUnit = null;
+    this.dockScrollDrag = null;
     this.hoverWorld = null;
     this.elements.app.classList.remove('is-dragging-unit', 'drag-valid');
+    this.elements.unitList.classList.remove('is-dock-dragging');
     this.updateUnitCards();
   }
 
@@ -675,9 +762,6 @@ class MemeWarApp {
           pointerId: event.pointerId,
           originX: existing.x,
           originY: existing.y,
-          lastValidX: existing.x,
-          lastValidY: existing.y,
-          blocked: false,
           overCard: false,
           targetCardId: null,
         };
@@ -694,11 +778,10 @@ class MemeWarApp {
 
     if (this.phase === 'battle' || this.phase === 'result') {
       this.slowInput = event.button === 0 && this.phase === 'battle';
-      const point = this.getInputPoint(event);
       this.cameraDrag = {
         pointerId: event.pointerId,
-        startX: point.x,
-        startY: point.y,
+        startX: event.clientX,
+        startY: event.clientY,
         cameraX: this.camera.x,
         cameraY: this.camera.y,
       };
@@ -712,39 +795,21 @@ class MemeWarApp {
       this.draggedDeployment.overCard = Boolean(targetCard);
       this.draggedDeployment.targetCardId = targetCard?.dataset.unitId ?? null;
       this.updateDragDropUi();
-      if (!this.isPointInside(this.canvas, event)) {
-        this.hoverWorld = null;
-        this.elements.app.classList.remove('drag-valid');
-        return;
-      }
+      if (!this.isPointInside(this.canvas, event)) return;
       const world = this.pointerToWorld(event);
       const deployment = this.draggedDeployment.deployment;
       const data = this.unitsById[deployment.unitId];
-      this.hoverWorld = world;
-      const footprint = getUnitFootprintRadius(data);
-      const minX = WORLD.minX + Math.max(PLAYER_SAFE_MARGIN, footprint);
-      const maxX = PLAYER_ZONE_RIGHT - footprint;
-      const minY = WORLD.minY + Math.max(PLAYER_SAFE_MARGIN, footprint);
-      const maxY = WORLD.maxY - Math.max(PLAYER_SAFE_MARGIN, footprint);
-      const nextX = clamp(world.x, minX, maxX);
-      const nextY = clamp(world.y, minY, maxY);
-      const valid = this.isValidPlacement(nextX, nextY, data, deployment);
-      this.draggedDeployment.blocked = !valid;
-      this.elements.app.classList.toggle('drag-valid', valid);
-      if (valid) {
-        deployment.x = nextX;
-        deployment.y = nextY;
-        this.draggedDeployment.lastValidX = nextX;
-        this.draggedDeployment.lastValidY = nextY;
-      }
+      const bounds = this.getDeploymentBounds(data);
+      deployment.x = clamp(world.x, WORLD.minX + PLAYER_SAFE_MARGIN, PLAYER_ZONE_RIGHT - data.radius);
+      deployment.y = clamp(world.y, bounds.minY, bounds.maxY);
       return;
     }
     const world = this.pointerToWorld(event);
     this.hoverWorld = world;
     if (this.cameraDrag?.pointerId === event.pointerId) {
-      const point = this.getInputPoint(event);
-      const dx = (point.x - this.cameraDrag.startX) / this.camera.zoom;
-      const dy = (point.y - this.cameraDrag.startY) / this.camera.zoom;
+      const { dx: pointerDx, dy: pointerDy } = this.getPointerDelta(event, this.cameraDrag.startX, this.cameraDrag.startY);
+      const dx = pointerDx / this.camera.zoom;
+      const dy = pointerDy / this.camera.zoom;
       this.camera.x = this.cameraDrag.cameraX - dx;
       this.camera.y = this.cameraDrag.cameraY - dy;
       this.clampCamera();
@@ -759,22 +824,15 @@ class MemeWarApp {
       if (event.type === 'pointercancel') {
         drag.deployment.x = drag.originX;
         drag.deployment.y = drag.originY;
-      } else if (drag.blocked) {
-        drag.deployment.x = drag.lastValidX;
-        drag.deployment.y = drag.lastValidY;
       }
       this.draggedDeployment = null;
-      this.hoverWorld = null;
       this.elements.app.classList.remove('is-dragging-deployment');
-      this.elements.app.classList.remove('drag-valid');
       this.updateDragDropUi();
       if (overCard && event.type !== 'pointercancel') {
         const data = this.unitsById[drag.deployment.unitId];
         this.removeDeployment(drag.deployment);
         this.showToast(`${data.name} 已撤销，${data.price} 金已退回。`);
         this.audio.blip(190, 0.06, 'square', 0.018);
-      } else if (drag.blocked && event.type !== 'pointercancel') {
-        this.showToast('这个位置太挤了，已保持上一个有效位置。');
       }
       return;
     }
@@ -789,7 +847,7 @@ class MemeWarApp {
     if (!this.renderer) return;
     const before = this.pointerToWorld(event);
     const factor = event.deltaY < 0 ? 1.1 : 0.9;
-    this.camera.zoom = clamp(this.camera.zoom * factor, MIN_ZOOM, MAX_ZOOM);
+    this.camera.zoom = clamp(this.camera.zoom * factor, this.getMinimumZoom(), MAX_ZOOM);
     const after = this.pointerToWorld(event);
     this.camera.x += before.x - after.x;
     this.camera.y += before.y - after.y;
@@ -797,46 +855,30 @@ class MemeWarApp {
   }
 
   pointerToWorld(event) {
-    const point = this.getInputPoint(event);
-    const rect = this.isVirtualLandscape() ? this.getLayoutRect(this.canvas) : this.canvas.getBoundingClientRect();
+    const rect = this.canvas.getBoundingClientRect();
+    const screenX = this.isAutoLandscape ? event.clientY - rect.top : event.clientX - rect.left;
+    const screenY = this.isAutoLandscape ? rect.right - event.clientX : event.clientY - rect.top;
     return this.renderer
-      ? this.renderer.screenToWorld(point.x - rect.left, point.y - rect.top)
+      ? this.renderer.screenToWorld(screenX, screenY)
       : { x: WORLD.width / 2, y: WORLD.height / 2 };
+  }
+
+  getPointerDelta(event, startX, startY) {
+    const physicalDx = event.clientX - startX;
+    const physicalDy = event.clientY - startY;
+    return this.isAutoLandscape
+      ? { dx: physicalDy, dy: -physicalDx }
+      : { dx: physicalDx, dy: physicalDy };
+  }
+
+  get isVerticalUnitRail() {
+    return getComputedStyle(this.elements.unitList).flexDirection === 'column';
   }
 
   isPointInside(element, event) {
     if (!element || !Number.isFinite(event.clientX) || !Number.isFinite(event.clientY)) return false;
-    const point = this.getInputPoint(event);
-    const rect = this.isVirtualLandscape() ? this.getLayoutRect(element) : element.getBoundingClientRect();
-    return point.x >= rect.left && point.x <= rect.right && point.y >= rect.top && point.y <= rect.bottom;
-  }
-
-  isVirtualLandscape() {
-    return document.documentElement.classList.contains('is-virtual-landscape');
-  }
-
-  getInputPoint(event) {
-    if (!this.isVirtualLandscape()) return { x: event.clientX, y: event.clientY };
-    const { width, height } = getViewportSize();
-    if (height <= width) return { x: event.clientX, y: event.clientY };
-    return { x: event.clientY, y: width - event.clientX };
-  }
-
-  getLayoutRect(element) {
-    let left = 0;
-    let top = 0;
-    let node = element;
-    while (node instanceof HTMLElement) {
-      left += node.offsetLeft;
-      top += node.offsetTop;
-      node = node.offsetParent;
-    }
-    return {
-      left,
-      top,
-      right: left + (element.offsetWidth || 0),
-      bottom: top + (element.offsetHeight || 0),
-    };
+    const rect = element.getBoundingClientRect();
+    return event.clientX >= rect.left && event.clientX <= rect.right && event.clientY >= rect.top && event.clientY <= rect.bottom;
   }
 
   getUnitCardAtPoint(event) {
@@ -865,15 +907,35 @@ class MemeWarApp {
     this.camera.y = clamp(this.camera.y, minCameraY, maxCameraY);
   }
 
-  fitCamera() {
+  fitCamera({ preserveFocus = false } = {}) {
     if (!this.renderer) return;
-    this.camera.x = WORLD.width / 2;
-    this.camera.y = WORLD.height / 2;
+    if (!preserveFocus) {
+      this.camera.x = WORLD.width / 2;
+      this.camera.y = this.isCompactLandscape || this.isAutoLandscape ? WORLD.height * 0.44 : WORLD.height / 2;
+    }
     this.camera.zoom = clamp(
       Math.min((this.renderer.width - 20) / WORLD.width, (this.renderer.height - 20) / WORLD.height),
-      MIN_ZOOM,
+      this.getMinimumZoom(),
       MAX_ZOOM,
     );
+    this.clampCamera();
+  }
+
+  getDeploymentBounds(unit) {
+    const radius = unit?.radius ?? 24;
+    let minY = Math.max(WORLD.minY + PLAYER_SAFE_MARGIN, PLAYER_DEPLOY_TOP);
+    let maxY = Math.min(WORLD.maxY - PLAYER_SAFE_MARGIN, PLAYER_DEPLOY_BOTTOM);
+    if (this.renderer && this.camera.zoom > 0) {
+      const halfViewportHeight = this.renderer.height / (2 * this.camera.zoom);
+      minY = Math.max(minY, this.camera.y - halfViewportHeight + Math.max(34, radius * 1.6));
+      maxY = Math.min(maxY, this.camera.y + halfViewportHeight - Math.max(76, radius * 2.6));
+    }
+    if (minY > maxY) {
+      const midpoint = (minY + maxY) / 2;
+      minY = midpoint;
+      maxY = midpoint;
+    }
+    return { minY, maxY };
   }
 
   placeSelectedUnit(x, y) {
@@ -883,12 +945,7 @@ class MemeWarApp {
       this.showToast(`最多部署 ${MAX_DEPLOYMENTS} 个单位。`);
       return;
     }
-    const footprint = getUnitFootprintRadius(unit);
-    const minX = WORLD.minX + Math.max(PLAYER_SAFE_MARGIN, footprint);
-    const maxX = PLAYER_ZONE_RIGHT - footprint;
-    const minY = WORLD.minY + Math.max(PLAYER_SAFE_MARGIN, footprint);
-    const maxY = WORLD.maxY - Math.max(PLAYER_SAFE_MARGIN, footprint);
-    if (x > maxX || x < minX || y < minY || y > maxY) {
+    if (x > PLAYER_ZONE_RIGHT - unit.radius || x < WORLD.minX + PLAYER_SAFE_MARGIN) {
       this.showToast('只能放在左侧部署区内。');
       return;
     }
@@ -896,18 +953,13 @@ class MemeWarApp {
       this.showToast('预算不够了，换一张更便宜的卡。');
       return;
     }
-    const placementX = clamp(x, minX, maxX);
-    const placementY = clamp(y, minY, maxY);
-    if (!this.isDeploymentPositionFree(placementX, placementY, unit)) {
-      this.showToast('这个位置太挤了，请把单位之间拉开。');
-      return;
-    }
+    const bounds = this.getDeploymentBounds(unit);
     const deployment = {
       id: `deployment-${this.nextDeploymentId++}`,
       unitId: unit.id,
       data: unit,
-      x: placementX,
-      y: placementY,
+      x: clamp(x, WORLD.minX + PLAYER_SAFE_MARGIN, PLAYER_ZONE_RIGHT - unit.radius),
+      y: clamp(y, bounds.minY, bounds.maxY),
     };
     this.deployments.push(deployment);
     this.spent += unit.price;
@@ -921,7 +973,7 @@ class MemeWarApp {
     for (const deployment of this.deployments) {
       const data = this.unitsById[deployment.unitId];
       const currentDistance = Math.hypot(deployment.x - x, deployment.y - y);
-      if (currentDistance <= getUnitFootprintRadius(data) + 14 && currentDistance < closestDistance) {
+      if (currentDistance <= data.radius + 14 && currentDistance < closestDistance) {
         closest = deployment;
         closestDistance = currentDistance;
       }
@@ -987,7 +1039,7 @@ class MemeWarApp {
     this.elements.resultStamp.textContent = won ? 'VICTORY' : 'DEFEAT';
     this.elements.resultTitle.textContent = won ? '胜利' : '失败';
     this.elements.resultSummary.textContent = won
-      ? `完成 ${this.simulation.totalWaves} 波战斗，战场留下了 ${this.simulation.playerCount} 名己方单位。`
+      ? `敌方 ${this.simulation.enemyRosterCount} 名单位已全部击破，战场留下了 ${this.simulation.playerCount} 名己方单位。`
       : '你的编队被清空了。换一个克制思路，再把部署点拉开一点。';
     this.elements.resultInitial.textContent = String(this.level.budget);
     this.elements.resultSpent.textContent = String(this.spent);
@@ -1028,9 +1080,7 @@ class MemeWarApp {
     this.elements.enemyCount.textContent = String(enemyCount);
     const total = playerCount + enemyCount;
     this.elements.battleProgress.style.width = `${total ? Math.round((playerCount / total) * 100) : 0}%`;
-    const waveCount = this.simulation?.totalWaves ?? this.level.waves?.length ?? 1;
-    const waveNumber = this.simulation ? Math.min(this.simulation.waveIndex + 1, waveCount) : 0;
-    this.elements.waveReadout.textContent = isPrep ? `共 ${waveCount} 波` : `第 ${waveNumber} / ${waveCount} 波`;
+    this.elements.enemyReadout.textContent = isPrep ? `${enemyCount} 名敌人待命` : `${enemyCount} 名敌人`;
     this.elements.battleClock.textContent = formatClock(this.simulation?.time ?? 0);
     this.elements.speedReadout.textContent = `${this.speed}×${this.slowInput ? ' · 慢' : ''}`;
     this.updateUnitCards();
@@ -1072,23 +1122,30 @@ class MemeWarApp {
     this.drawArena();
     this.drawUnitsAndEffects();
     this.renderer.end();
-    const labelInterval = this.renderer.isMobile ? 0.08 : 0.033;
-    if (this.renderTime - this.lastLabelUpdate >= labelInterval) {
-      this.lastLabelUpdate = this.renderTime;
-      this.updateWorldLabels();
-    }
+    this.updateWorldLabels();
   }
 
   drawArena() {
     const renderer = this.renderer;
-    renderer.drawRect(WORLD.width / 2, WORLD.height / 2, WORLD.width, WORLD.height, '#102832');
-    renderer.drawRect(400, WORLD.height / 2, 720, 700, '#173b3b', 0.72);
-    renderer.drawRect(1200, WORLD.height / 2, 720, 700, '#3a2632', 0.66);
-    renderer.drawRect(WORLD.width / 2, WORLD.height / 2, 86, 700, '#133c4b', 0.9);
+    if (renderer.backgroundReady && renderer.backgroundTexture) {
+      const viewportWorldWidth = renderer.width / this.camera.zoom;
+      const viewportWorldHeight = renderer.height / this.camera.zoom;
+      renderer.drawTextureRect(this.camera.x, this.camera.y, viewportWorldWidth, viewportWorldHeight, renderer.backgroundTexture, 0, 1, 0, 1, 0.32, '#102832');
+      renderer.drawTextureRect(WORLD.width / 2, WORLD.height / 2, WORLD.width, WORLD.height, renderer.backgroundTexture, 0, 1, 0, 1, 0.98, '#ffffff');
+      renderer.drawRect(400, WORLD.height / 2, 720, 700, '#173b3b', 0.11);
+      renderer.drawRect(1200, WORLD.height / 2, 720, 700, '#3a2632', 0.11);
+      renderer.drawRect(WORLD.width / 2, WORLD.height / 2, 86, 700, '#133c4b', 0.16);
+    } else {
+      renderer.drawRect(WORLD.width / 2, WORLD.height / 2, WORLD.width, WORLD.height, '#102832');
+      renderer.drawRect(400, WORLD.height / 2, 720, 700, '#173b3b', 0.72);
+      renderer.drawRect(1200, WORLD.height / 2, 720, 700, '#3a2632', 0.66);
+      renderer.drawRect(WORLD.width / 2, WORLD.height / 2, 86, 700, '#133c4b', 0.9);
+    }
     renderer.drawLine(800, WORLD.minY, 800, WORLD.maxY, 2, '#63e0cb', 0.22);
 
-    for (let x = 40; x <= WORLD.width - 40; x += 80) renderer.drawLine(x, WORLD.minY, x, WORLD.maxY, 1, '#91c6bb', 0.08);
-    for (let y = 40; y <= WORLD.height - 40; y += 80) renderer.drawLine(WORLD.minX, y, WORLD.maxX, y, 1, '#91c6bb', 0.08);
+    const gridStep = renderer.qualityTier === 'low' ? 160 : 80;
+    for (let x = 40; x <= WORLD.width - 40; x += gridStep) renderer.drawLine(x, WORLD.minY, x, WORLD.maxY, 1, '#91c6bb', 0.08);
+    for (let y = 40; y <= WORLD.height - 40; y += gridStep) renderer.drawLine(WORLD.minX, y, WORLD.maxX, y, 1, '#91c6bb', 0.08);
     renderer.drawLine(WORLD.minX, WORLD.minY, WORLD.maxX, WORLD.minY, 3, '#a5dbd0', 0.2);
     renderer.drawLine(WORLD.maxX, WORLD.minY, WORLD.maxX, WORLD.maxY, 3, '#a5dbd0', 0.2);
     renderer.drawLine(WORLD.maxX, WORLD.maxY, WORLD.minX, WORLD.maxY, 3, '#a5dbd0', 0.2);
@@ -1096,54 +1153,89 @@ class MemeWarApp {
     renderer.drawLine(PLAYER_ZONE_RIGHT, WORLD.minY + 6, PLAYER_ZONE_RIGHT, WORLD.maxY - 6, 2, '#63e0cb', 0.15);
     renderer.drawLine(840, WORLD.minY + 6, 840, WORLD.maxY - 6, 2, '#ff796a', 0.12);
 
-    if (this.phase === 'prep' && this.selectedUnitId) {
-      const unit = this.unitsById[this.selectedUnitId];
-      const ignoreDeployment = this.draggedDeployment?.deployment ?? null;
-      const valid = this.hoverWorld && this.isValidPlacement(this.hoverWorld.x, this.hoverWorld.y, unit, ignoreDeployment);
-      if (valid) {
-        renderer.drawCircle(this.hoverWorld.x, this.hoverWorld.y, unit.radius, unit.color, 24, 0.28);
-        renderer.drawRing(this.hoverWorld.x, this.hoverWorld.y, getUnitFootprintRadius(unit) + 6, 3, '#63e0cb', 24, 0.8);
-      } else if (this.hoverWorld && (this.draggedUnit || this.draggedDeployment)) {
-        renderer.drawRing(this.hoverWorld.x, this.hoverWorld.y, getUnitFootprintRadius(unit) + 6, 4, '#ff796a', 24, 0.86);
+    if (this.phase === 'prep') {
+      const activeUnit = this.selectedUnitId ? this.unitsById[this.selectedUnitId] : null;
+      const bounds = this.getDeploymentBounds(activeUnit);
+      renderer.drawLine(WORLD.minX + 18, bounds.minY, PLAYER_ZONE_RIGHT - 18, bounds.minY, 1, '#63e0cb', 0.1);
+      renderer.drawLine(WORLD.minX + 18, bounds.maxY, PLAYER_ZONE_RIGHT - 18, bounds.maxY, 1, '#63e0cb', 0.1);
+      if (this.hoverWorld && activeUnit) {
+        const previewY = clamp(this.hoverWorld.y, bounds.minY, bounds.maxY);
+        if (this.isValidPlacement(this.hoverWorld.x, previewY, activeUnit)) {
+          const previewSize = activeUnit.radius * 1.8;
+          const left = this.hoverWorld.x - previewSize / 2;
+          const right = this.hoverWorld.x + previewSize / 2;
+          const top = previewY - previewSize / 2;
+          const bottom = previewY + previewSize / 2;
+          renderer.drawRect(this.hoverWorld.x, previewY, previewSize, previewSize, activeUnit.color, 0.14);
+          renderer.drawLine(left, top, right, top, 2, '#63e0cb', 0.72);
+          renderer.drawLine(right, top, right, bottom, 2, '#63e0cb', 0.72);
+          renderer.drawLine(right, bottom, left, bottom, 2, '#63e0cb', 0.72);
+          renderer.drawLine(left, bottom, left, top, 2, '#63e0cb', 0.72);
+        }
       }
     }
   }
 
-  isValidPlacement(x, y, unit, ignoreDeployment = null) {
-    const availableBudget = this.budgetRemaining + (ignoreDeployment?.unitId === unit?.id ? unit.price : 0);
-    if (!unit || availableBudget < unit.price) return false;
-    const footprint = getUnitFootprintRadius(unit);
-    const minX = WORLD.minX + Math.max(PLAYER_SAFE_MARGIN, footprint);
-    const maxX = PLAYER_ZONE_RIGHT - footprint;
-    const minY = WORLD.minY + Math.max(PLAYER_SAFE_MARGIN, footprint);
-    const maxY = WORLD.maxY - Math.max(PLAYER_SAFE_MARGIN, footprint);
-    return x >= minX && x <= maxX && y >= minY && y <= maxY && this.isDeploymentPositionFree(x, y, unit, ignoreDeployment);
-  }
-
-  isDeploymentPositionFree(x, y, unit, ignoreDeployment = null) {
-    if (!unit) return false;
-    const footprint = getUnitFootprintRadius(unit);
-    return this.deployments.every((deployment) => {
-      if (deployment === ignoreDeployment) return true;
-      const other = this.unitsById[deployment.unitId];
-      if (!other) return true;
-      const minimum = footprint + getUnitFootprintRadius(other) + DEPLOYMENT_GAP;
-      return Math.hypot(deployment.x - x, deployment.y - y) >= minimum;
-    });
+  isValidPlacement(x, y, unit) {
+    const bounds = this.getDeploymentBounds(unit);
+    return Boolean(unit) && x >= WORLD.minX + PLAYER_SAFE_MARGIN && x <= PLAYER_ZONE_RIGHT - unit.radius && y >= bounds.minY && y <= bounds.maxY && this.budgetRemaining >= unit.price;
   }
 
   drawUnitsAndEffects() {
-    const units = this.battleUnits;
+    // Painter's order follows battlefield depth: larger world Y is closer to the camera.
+    const units = [...this.battleUnits].sort((first, second) => {
+      const depth = (first.y ?? 0) - (second.y ?? 0);
+      return depth || (first.x ?? 0) - (second.x ?? 0) || String(first.id ?? '').localeCompare(String(second.id ?? ''));
+    });
     for (const unit of units) {
       if (!unit.data) continue;
       this.drawUnit(unit);
     }
     if (!this.simulation || this.phase === 'prep') return;
     for (const projectile of this.simulation.projectiles) {
-      this.renderer.drawLine(projectile.x - 8, projectile.y - 8, projectile.x + 8, projectile.y + 8, 4, projectile.color, 0.88);
-      this.renderer.drawCircle(projectile.x, projectile.y, 5, projectile.color, 12, 0.95);
+      const target = this.simulation.findUnit(projectile.targetId);
+      const projectileDirection = target ? normalize(target.x - projectile.x, target.y - projectile.y) : { x: 1, y: 0 };
+      const perpendicular = { x: -projectileDirection.y, y: projectileDirection.x };
+      const style = projectile.style ?? 'spark';
+      const color = projectile.color ?? '#f4c66a';
+      const secondaryColor = projectile.secondaryColor ?? '#fff1e6';
+      if (style === 'basketball') {
+        this.renderer.drawLine(projectile.x - projectileDirection.x * 22, projectile.y - projectileDirection.y * 22, projectile.x - projectileDirection.x * 8, projectile.y - projectileDirection.y * 8, 3, color, 0.26);
+        this.renderer.drawCircle(projectile.x, projectile.y, 11, '#e98b43', 18, 0.98);
+        this.renderer.drawRing(projectile.x, projectile.y, 11, 2, '#2a1b18', 20, 0.9);
+        this.renderer.drawLine(projectile.x - perpendicular.x * 10, projectile.y - perpendicular.y * 10, projectile.x + perpendicular.x * 10, projectile.y + perpendicular.y * 10, 2, '#2a1b18', 0.88);
+        this.renderer.drawLine(projectile.x - projectileDirection.x * 8, projectile.y - projectileDirection.y * 8, projectile.x + projectileDirection.x * 8, projectile.y + projectileDirection.y * 8, 2, '#2a1b18', 0.88);
+      } else if (style === 'watermelon') {
+        this.renderer.drawCircle(projectile.x, projectile.y, 12, '#4f9a55', 18, 0.98);
+        this.renderer.drawRing(projectile.x, projectile.y, 11, 3, '#cce58b', 20, 0.9);
+        this.renderer.drawLine(projectile.x - perpendicular.x * 7, projectile.y - perpendicular.y * 7, projectile.x + perpendicular.x * 7, projectile.y + perpendicular.y * 7, 2, secondaryColor, 0.9);
+      } else if (style === 'milkBubble') {
+        this.renderer.drawCircle(projectile.x, projectile.y, 9, '#f7f1d1', 16, 0.94);
+        this.renderer.drawRing(projectile.x, projectile.y, 10, 2, color, 18, 0.76);
+        this.renderer.drawCircle(projectile.x - perpendicular.x * 9, projectile.y - perpendicular.y * 9, 3, '#ffffff', 12, 0.76);
+      } else if (style === 'delivery') {
+        this.renderer.drawRect(projectile.x, projectile.y, 15, 11, '#ef964d', 0.94);
+        this.renderer.drawLine(projectile.x - projectileDirection.x * 17, projectile.y - projectileDirection.y * 17, projectile.x + projectileDirection.x * 5, projectile.y + projectileDirection.y * 5, 3, color, 0.56);
+        this.renderer.drawLine(projectile.x - 5, projectile.y, projectile.x + 5, projectile.y, 2, '#fff0b3', 0.84);
+      } else if (style === 'sniper') {
+        this.renderer.drawLine(projectile.x - projectileDirection.x * 38, projectile.y - projectileDirection.y * 38, projectile.x + projectileDirection.x * 9, projectile.y + projectileDirection.y * 9, 3, '#efff8f', 0.8);
+        this.renderer.drawCircle(projectile.x, projectile.y, 4, color, 12, 0.98);
+      } else if (style === 'penguin') {
+        this.renderer.drawLine(projectile.x - projectileDirection.x * 18, projectile.y - projectileDirection.y * 18, projectile.x, projectile.y, 3, '#d7e9f2', 0.28);
+        this.renderer.drawCircle(projectile.x, projectile.y, 9, '#1b263b', 16, 0.96);
+        this.renderer.drawCircle(projectile.x, projectile.y + 2, 5, '#f1f4f6', 14, 0.9);
+        this.renderer.drawCircle(projectile.x + projectileDirection.x * 8, projectile.y + projectileDirection.y * 8, 2.5, '#f9c74f', 12, 0.98);
+      } else if (style === 'shotgun') {
+        this.renderer.drawLine(projectile.x - projectileDirection.x * 28, projectile.y - projectileDirection.y * 28, projectile.x + projectileDirection.x * 9, projectile.y + projectileDirection.y * 9, 6, color, 0.84);
+        this.renderer.drawCircle(projectile.x + perpendicular.x * 8, projectile.y + perpendicular.y * 8, 4, color, 12, 0.88);
+        this.renderer.drawCircle(projectile.x - perpendicular.x * 8, projectile.y - perpendicular.y * 8, 4, color, 12, 0.88);
+      } else {
+        this.renderer.drawLine(projectile.x - projectileDirection.x * 19, projectile.y - projectileDirection.y * 19, projectile.x + projectileDirection.x * 7, projectile.y + projectileDirection.y * 7, 4, color, 0.88);
+        this.renderer.drawCircle(projectile.x, projectile.y, 5, color, 12, 0.95);
+      }
     }
-    for (const effect of this.simulation.effects) this.drawEffect(effect);
+    const effectLimit = this.renderer.qualityTier === 'low' ? 28 : this.renderer.qualityTier === 'medium' ? 52 : 84;
+    for (const effect of this.simulation.effects.slice(-effectLimit)) this.drawEffect(effect);
   }
 
   drawEffect(effect) {
@@ -1151,166 +1243,427 @@ class MemeWarApp {
     const progress = clamp(effect.life / Math.max(0.05, effect.duration), 0, 1);
     const elapsed = 1 - progress;
     const fade = clamp(progress * 1.2, 0, 1);
-    const radius = effect.radius * (0.76 + elapsed * 0.42);
     const pulse = 0.5 + 0.5 * Math.sin(this.renderTime * 8 + effect.id);
-    const color = effect.color;
-    const drawRing = (ringRadius, thickness = 4, alpha = fade) => renderer.drawRing(effect.x, effect.y, ringRadius, thickness, color, 28, alpha);
-
-    if (effect.type === 'waveSpawn') {
-      for (let index = 0; index < 3; index += 1) {
-        const ringProgress = (elapsed + index * 0.18) % 1;
-        renderer.drawRing(effect.x, effect.y, effect.radius * (0.24 + ringProgress * 0.84), 5 - index, color, 28, fade * (0.72 - index * 0.14) * (1 - ringProgress * 0.55));
+    const radius = effect.radius * (0.62 + elapsed * 0.46);
+    const style = effect.style ?? 'spark';
+    const angle = Number.isFinite(effect.angle) ? effect.angle : Math.atan2(effect.directionY ?? 0, effect.directionX ?? 1);
+    const direction = normalize(Math.cos(angle), Math.sin(angle));
+    const perpendicular = { x: -direction.y, y: direction.x };
+    const segments = (base) => renderer.qualitySegments(base);
+    const line = (x1, y1, x2, y2, thickness, tone = effect.color, alpha = fade) => renderer.drawLine(x1, y1, x2, y2, thickness, tone, alpha);
+    const ring = (x, y, ringRadius, thickness, tone = effect.color, alpha = fade) => renderer.drawRing(x, y, ringRadius, thickness, tone, segments(28), alpha);
+    const circle = (x, y, circleRadius, tone = effect.color, alpha = fade, detail = 18) => renderer.drawCircle(x, y, circleRadius, tone, segments(detail), alpha);
+    const polygon = (points, tone = effect.color, alpha = fade) => renderer.drawPolygon(points, tone, alpha);
+    const pointAlong = (distanceFromOrigin) => ({
+      x: effect.x + direction.x * distanceFromOrigin,
+      y: effect.y + direction.y * distanceFromOrigin,
+    });
+    const burst = (count, inner, outer, thickness, tone = effect.color, alpha = fade, offset = 0) => {
+      for (let index = 0; index < count; index += 1) {
+        const rayAngle = offset + index * Math.PI * 2 / count;
+        line(
+          effect.x + Math.cos(rayAngle) * inner,
+          effect.y + Math.sin(rayAngle) * inner,
+          effect.x + Math.cos(rayAngle) * outer,
+          effect.y + Math.sin(rayAngle) * outer,
+          thickness,
+          tone,
+          alpha,
+        );
       }
-      renderer.drawLine(effect.x, effect.y - effect.radius * 0.72, effect.x, effect.y + effect.radius * 0.72, 3, color, fade * 0.3);
-      for (let index = 0; index < 8; index += 1) {
-        const angle = index * Math.PI / 4 + this.renderTime * 0.8;
-        const orbit = effect.radius * (0.28 + elapsed * 0.38);
-        renderer.drawCircle(effect.x + Math.cos(angle) * orbit, effect.y + Math.sin(angle) * orbit, 5, color, 12, fade * 0.7);
+    };
+    const arc = (x, y, arcRadius, start, end, thickness, tone = effect.color, alpha = fade) => {
+      const count = segments(Math.max(7, Math.ceil(Math.abs(end - start) * 11)));
+      for (let index = 0; index < count; index += 1) {
+        const first = start + (end - start) * index / count;
+        const second = start + (end - start) * (index + 1) / count;
+        line(
+          x + Math.cos(first) * arcRadius,
+          y + Math.sin(first) * arcRadius,
+          x + Math.cos(second) * arcRadius,
+          y + Math.sin(second) * arcRadius,
+          thickness,
+          tone,
+          alpha,
+        );
+      }
+    };
+    const diamond = (x, y, size, rotation, tone = effect.color, alpha = fade) => {
+      const points = [];
+      for (let index = 0; index < 4; index += 1) {
+        const pointAngle = rotation + index * Math.PI / 2;
+        points.push({ x: x + Math.cos(pointAngle) * size, y: y + Math.sin(pointAngle) * size });
+      }
+      polygon(points, tone, alpha);
+    };
+    const triangle = (x, y, size, rotation, tone = effect.color, alpha = fade) => renderer.drawTriangle(x, y, size, rotation, tone, alpha);
+    const drawBasketball = (x, y, size, rotation, alpha = fade) => {
+      circle(x, y, size, '#e98b43', alpha, 18);
+      renderer.drawRing(x, y, size, Math.max(1.5, size * 0.16), '#2a1b18', segments(20), alpha * 0.92);
+      line(x - perpendicular.x * size * 0.86, y - perpendicular.y * size * 0.86, x + perpendicular.x * size * 0.86, y + perpendicular.y * size * 0.86, 1.8, '#2a1b18', alpha * 0.85);
+      line(x - Math.cos(rotation) * size * 0.86, y - Math.sin(rotation) * size * 0.86, x + Math.cos(rotation) * size * 0.86, y + Math.sin(rotation) * size * 0.86, 1.8, '#2a1b18', alpha * 0.85);
+      circle(x - size * 0.28, y - size * 0.28, Math.max(1.5, size * 0.16), '#ffd8a8', alpha * 0.78, 12);
+    };
+    const drawBubble = (x, y, size, alpha = fade) => {
+      circle(x, y, size, '#f7f1d1', alpha * 0.82, 16);
+      renderer.drawRing(x, y, size, Math.max(1.5, size * 0.14), '#90be6d', segments(18), alpha * 0.7);
+      circle(x - size * 0.34, y - size * 0.36, Math.max(1.5, size * 0.2), '#ffffff', alpha * 0.78, 12);
+    };
+    const drawPackage = (x, y, size, rotation, alpha = fade) => {
+      diamond(x, y, size, rotation + Math.PI / 4, '#ef964d', alpha * 0.94);
+      line(x - Math.cos(rotation) * size * 0.72, y - Math.sin(rotation) * size * 0.72, x + Math.cos(rotation) * size * 0.72, y + Math.sin(rotation) * size * 0.72, 2, '#fff0b3', alpha * 0.9);
+      line(x - perpendicular.x * size * 0.72, y - perpendicular.y * size * 0.72, x + perpendicular.x * size * 0.72, y + perpendicular.y * size * 0.72, 1.5, '#b95d35', alpha * 0.78);
+    };
+    const drawW = (x, y, size, alpha = fade) => {
+      const jaw = size * 0.86;
+      line(x - jaw, y - size * 0.24, x - jaw * 0.42, y + size * 0.52, 4, '#6d3f39', alpha);
+      line(x - jaw * 0.42, y + size * 0.52, x, y - size * 0.02, 4, '#6d3f39', alpha);
+      line(x, y - size * 0.02, x + jaw * 0.42, y + size * 0.52, 4, '#6d3f39', alpha);
+      line(x + jaw * 0.42, y + size * 0.52, x + jaw, y - size * 0.24, 4, '#6d3f39', alpha);
+      triangle(x - size * 0.38, y + size * 0.23, size * 0.13, Math.PI, '#fff4dc', alpha * 0.95);
+      triangle(x + size * 0.38, y + size * 0.23, size * 0.13, Math.PI, '#fff4dc', alpha * 0.95);
+    };
+    const drawClaws = (x, y, size, rotation, alpha = fade) => {
+      for (let index = -1; index <= 1; index += 1) {
+        const shift = index * size * 0.28;
+        const start = { x: x - Math.cos(rotation) * size * 0.8 + perpendicular.x * shift, y: y - Math.sin(rotation) * size * 0.8 + perpendicular.y * shift };
+        const end = { x: x + Math.cos(rotation) * size * 0.82 + perpendicular.x * shift * 0.55, y: y + Math.sin(rotation) * size * 0.82 + perpendicular.y * shift * 0.55 };
+        line(start.x, start.y, end.x, end.y, 4 - Math.abs(index), '#ff595e', alpha * (0.82 - Math.abs(index) * 0.12));
+      }
+    };
+    const drawLightning = (x, y, size, rotation, alpha = fade) => {
+      const along = { x: Math.cos(rotation), y: Math.sin(rotation) };
+      const across = { x: -along.y, y: along.x };
+      const points = [
+        { x: x - along.x * size * 0.82, y: y - along.y * size * 0.82 },
+        { x: x - along.x * size * 0.28 + across.x * size * 0.36, y: y - along.y * size * 0.28 + across.y * size * 0.36 },
+        { x: x + along.x * size * 0.08 - across.x * size * 0.28, y: y + along.y * size * 0.08 - across.y * size * 0.28 },
+        { x: x + along.x * size * 0.84 + across.x * size * 0.08, y: y + along.y * size * 0.84 + across.y * size * 0.08 },
+      ];
+      for (let index = 0; index < points.length - 1; index += 1) line(points[index].x, points[index].y, points[index + 1].x, points[index + 1].y, 3, '#f2e86d', alpha);
+    };
+    const drawBeat = (x, y, size, rotation, alpha = fade) => {
+      const beatColor = '#f3d6ff';
+      diamond(x - perpendicular.x * size * 0.62, y - perpendicular.y * size * 0.62, size * 0.2, rotation + Math.PI / 4, beatColor, alpha * 0.86);
+      diamond(x + perpendicular.x * size * 0.62, y + perpendicular.y * size * 0.62, size * 0.2, rotation + Math.PI / 4, '#7f8cff', alpha * 0.86);
+      line(x - Math.cos(rotation) * size * 0.86, y - Math.sin(rotation) * size * 0.86, x + Math.cos(rotation) * size * 0.86, y + Math.sin(rotation) * size * 0.86, 2, beatColor, alpha * 0.72);
+      line(x - Math.cos(rotation + Math.PI / 2) * size * 0.6, y - Math.sin(rotation + Math.PI / 2) * size * 0.6, x + Math.cos(rotation + Math.PI / 2) * size * 0.6, y + Math.sin(rotation + Math.PI / 2) * size * 0.6, 2, '#7f8cff', alpha * 0.65);
+    };
+    const drawRam = (x, y, size, rotation, alpha = fade) => {
+      const along = { x: Math.cos(rotation), y: Math.sin(rotation) };
+      const across = { x: -along.y, y: along.x };
+      for (let index = 0; index < 3; index += 1) {
+        const distanceFromPoint = size * (0.28 + index * 0.24);
+        const tip = { x: x + along.x * distanceFromPoint, y: y + along.y * distanceFromPoint };
+        line(tip.x - along.x * size * 0.33 - across.x * size * 0.28, tip.y - along.y * size * 0.33 - across.y * size * 0.28, tip.x, tip.y, 5 - index, index === 0 ? '#ed6a5a' : '#f6bd60', alpha * (0.92 - index * 0.16));
+        line(tip.x - along.x * size * 0.33 + across.x * size * 0.28, tip.y - along.y * size * 0.33 + across.y * size * 0.28, tip.x, tip.y, 5 - index, index === 0 ? '#ed6a5a' : '#f6bd60', alpha * (0.92 - index * 0.16));
+      }
+      circle(x - along.x * size * 0.46, y - along.y * size * 0.46, size * 0.12, '#d8a25b', alpha * 0.68, 12);
+    };
+    const drawShield = (x, y, size, rotation, alpha = fade) => {
+      const points = [];
+      for (let index = 0; index < 6; index += 1) {
+        const pointAngle = rotation - Math.PI / 2 + index * Math.PI / 3;
+        points.push({ x: x + Math.cos(pointAngle) * size, y: y + Math.sin(pointAngle) * size });
+      }
+      polygon(points, '#edf2f4', alpha * 0.14);
+      for (let index = 0; index < points.length; index += 1) {
+        const first = points[index];
+        const second = points[(index + 1) % points.length];
+        line(first.x, first.y, second.x, second.y, 3, '#edf2f4', alpha * 0.9);
+      }
+      line(x - Math.cos(rotation) * size * 0.55, y - Math.sin(rotation) * size * 0.55, x + Math.cos(rotation) * size * 0.55, y + Math.sin(rotation) * size * 0.55, 2, '#9fb2bd', alpha * 0.76);
+    };
+    const drawMagic = (x, y, size, rotation, alpha = fade) => {
+      arc(x, y, size * 0.78, rotation - 1.8, rotation - 0.35, 3, '#a98bff', alpha * 0.75);
+      arc(x, y, size * 0.58, rotation + 0.3, rotation + 1.7, 2, '#f1faee', alpha * 0.76);
+      const moteCount = renderer.qualityTier === 'low' ? 4 : 7;
+      for (let index = 0; index < moteCount; index += 1) {
+        const moteAngle = rotation + index * Math.PI * 2 / moteCount + this.renderTime * 0.7;
+        const moteRadius = size * (0.34 + (index % 2) * 0.25);
+        diamond(x + Math.cos(moteAngle) * moteRadius, y + Math.sin(moteAngle) * moteRadius, size * 0.08, moteAngle, index % 2 ? '#f1faee' : '#a98bff', alpha * 0.88);
+      }
+    };
+    const drawMelon = (x, y, size, rotation, alpha = fade) => {
+      const along = { x: Math.cos(rotation), y: Math.sin(rotation) };
+      const across = { x: -along.y, y: along.x };
+      polygon([
+        { x, y },
+        { x: x + along.x * size * 1.05 + across.x * size * 0.58, y: y + along.y * size * 1.05 + across.y * size * 0.58 },
+        { x: x + along.x * size * 0.38, y: y + along.y * size * 0.38 },
+        { x: x + along.x * size * 1.05 - across.x * size * 0.58, y: y + along.y * size * 1.05 - across.y * size * 0.58 },
+      ], '#4f9a55', alpha * 0.92);
+      line(x + along.x * size * 0.28 - across.x * size * 0.38, y + along.y * size * 0.28 - across.y * size * 0.38, x + along.x * size * 0.28 + across.x * size * 0.38, y + along.y * size * 0.28 + across.y * size * 0.38, 3, '#cce58b', alpha * 0.84);
+      for (let index = 0; index < 3; index += 1) {
+        const seedDistance = size * (0.52 + index * 0.2);
+        circle(x + along.x * seedDistance, y + along.y * seedDistance + (index - 1) * size * 0.16, size * 0.065, '#2a1b18', alpha * 0.85, 10);
+      }
+    };
+    const drawPenguin = (x, y, size, rotation, alpha = fade) => {
+      circle(x, y, size, '#1b263b', alpha * 0.95, 16);
+      circle(x + perpendicular.x * size * 0.12, y + perpendicular.y * size * 0.12, size * 0.56, '#f1f4f6', alpha * 0.88, 16);
+      triangle(x + Math.cos(rotation) * size * 0.72, y + Math.sin(rotation) * size * 0.72, size * 0.22, rotation, '#f9c74f', alpha * 0.96);
+      line(x - perpendicular.x * size * 0.92, y - perpendicular.y * size * 0.92, x - perpendicular.x * size * 1.3, y - perpendicular.y * size * 1.3, 2, '#f9c74f', alpha * 0.7);
+      line(x + perpendicular.x * size * 0.92, y + perpendicular.y * size * 0.92, x + perpendicular.x * size * 1.3, y + perpendicular.y * size * 1.3, 2, '#f9c74f', alpha * 0.7);
+    };
+    const drawDelivery = (x, y, size, rotation, alpha = fade) => {
+      drawPackage(x, y, size * 0.62, rotation, alpha);
+      line(x - Math.cos(rotation) * size * 1.35, y - Math.sin(rotation) * size * 1.35, x - Math.cos(rotation) * size * 0.72, y - Math.sin(rotation) * size * 0.72, 3, '#ee964b', alpha * 0.68);
+      line(x - Math.cos(rotation) * size * 1.35 + perpendicular.x * size * 0.2, y - Math.sin(rotation) * size * 1.35 + perpendicular.y * size * 0.2, x - Math.cos(rotation) * size * 0.72 + perpendicular.x * size * 0.2, y - Math.sin(rotation) * size * 0.72 + perpendicular.y * size * 0.2, 2, '#f9c74f', alpha * 0.58);
+    };
+    const drawStyleAttack = (ranged) => {
+      const actionProgress = clamp(elapsed / 0.72, 0, 1);
+      const length = effect.radius * (0.34 + actionProgress * 0.95);
+      const origin = pointAlong(-6);
+      const head = pointAlong(length);
+      if (ranged) {
+        if (style === 'shotgun') {
+          line(origin.x, origin.y, head.x, head.y, 5, '#ff8b5c', fade * 0.7);
+          line(origin.x + perpendicular.x * 7, origin.y + perpendicular.y * 7, head.x + perpendicular.x * 12, head.y + perpendicular.y * 12, 2, '#ffd166', fade * 0.66);
+          line(origin.x - perpendicular.x * 7, origin.y - perpendicular.y * 7, head.x - perpendicular.x * 12, head.y - perpendicular.y * 12, 2, '#ffd166', fade * 0.66);
+          triangle(effect.x + direction.x * 17, effect.y + direction.y * 17, 8, angle, '#fff1e6', fade * 0.78);
+          circle(head.x + perpendicular.x * 12, head.y + perpendicular.y * 12, 4, '#ff8b5c', fade * 0.82, 12);
+          circle(head.x - perpendicular.x * 12, head.y - perpendicular.y * 12, 4, '#ff8b5c', fade * 0.82, 12);
+        } else if (style === 'basketball') {
+          line(origin.x, origin.y, head.x, head.y, 2.5, '#c7b8ff', fade * 0.42);
+          drawBasketball(head.x, head.y, 10 + actionProgress * 3, angle + actionProgress * 3.5, fade * 0.94);
+        } else if (style === 'rhythm') {
+          drawBeat(effect.x + direction.x * length * 0.58, effect.y + direction.y * length * 0.58, 18 + actionProgress * 8, angle + this.renderTime, fade * 0.84);
+          line(origin.x, origin.y, head.x, head.y, 2, '#7f8cff', fade * 0.48);
+        } else if (style === 'sniper') {
+          line(origin.x, origin.y, head.x, head.y, 3, '#efff8f', fade * 0.86);
+          diamond(head.x, head.y, 6, angle + Math.PI / 4, '#efff8f', fade * 0.9);
+          line(effect.x - perpendicular.x * 14, effect.y - perpendicular.y * 14, effect.x + perpendicular.x * 14, effect.y + perpendicular.y * 14, 2, '#4ecdc4', fade * 0.5);
+        } else if (style === 'watermelon' || style === 'melon') {
+          drawMelon(head.x, head.y, 11, angle, fade * 0.92);
+          line(origin.x, origin.y, head.x, head.y, 2, '#f7c873', fade * 0.36);
+        } else if (style === 'milkBubble') {
+          drawBubble(head.x, head.y, 9 + actionProgress * 2, fade * 0.9);
+          line(origin.x, origin.y, head.x, head.y, 2, '#90be6d', fade * 0.28);
+        } else if (style === 'delivery') {
+          drawDelivery(head.x, head.y, 15, angle, fade * 0.92);
+        } else if (style === 'penguin') {
+          drawPenguin(head.x, head.y, 10, angle, fade * 0.92);
+        } else {
+          drawLightning(head.x, head.y, 18, angle, fade * 0.9);
+        }
+        return;
+      }
+
+      const targetX = Number.isFinite(effect.toX) ? effect.toX : head.x;
+      const targetY = Number.isFinite(effect.toY) ? effect.toY : head.y;
+      if (style === 'claw') {
+        const sweep = angle - 1.0 + actionProgress * 2;
+        drawClaws(targetX, targetY, effect.radius * (0.5 + actionProgress * 0.5), sweep, fade * 0.92);
+      } else if (style === 'poke') {
+        line(effect.x, effect.y, targetX, targetY, 3, '#a8dadc', fade * 0.45);
+        triangle(targetX, targetY, effect.radius * (0.2 + actionProgress * 0.16), angle, '#a8dadc', fade * 0.92);
+        line(targetX - perpendicular.x * 14, targetY - perpendicular.y * 14, targetX + perpendicular.x * 14, targetY + perpendicular.y * 14, 2, '#f1faee', fade * 0.72);
+      } else if (style === 'ram' || style === 'heavy') {
+        drawRam(effect.x, effect.y, effect.radius * (0.72 + actionProgress * 0.4), angle, fade * 0.92);
+      } else if (style === 'bark') {
+        drawLightning(targetX, targetY, effect.radius * 0.72, angle, fade * 0.9);
+        arc(targetX, targetY, effect.radius * 0.58, angle - 0.7, angle + 0.7, 3, '#ffcf70', fade * 0.72);
+      } else if (style === 'hiss') {
+        drawW(targetX, targetY, effect.radius * (0.58 + actionProgress * 0.26), fade * 0.95);
+      } else if (style === 'shield') {
+        drawShield(targetX, targetY, effect.radius * (0.55 + actionProgress * 0.18), angle, fade * 0.86);
+      } else if (style === 'melon') {
+        drawMelon(targetX, targetY, effect.radius * 0.62, angle, fade * 0.9);
+      } else if (style === 'magic') {
+        drawMagic(targetX, targetY, effect.radius * 0.7, angle, fade * 0.82);
+      } else if (style === 'delivery') {
+        drawPackage(targetX, targetY, effect.radius * 0.5, angle, fade * 0.9);
+      } else if (style === 'penguin') {
+        drawPenguin(targetX, targetY, effect.radius * 0.34, angle, fade * 0.84);
+      } else if (style === 'sniper') {
+        line(effect.x, effect.y, targetX, targetY, 2, '#efff8f', fade * 0.78);
+        diamond(targetX, targetY, effect.radius * 0.3, angle, '#efff8f', fade * 0.92);
+      } else {
+        drawLightning(targetX, targetY, effect.radius * 0.72, angle, fade * 0.86);
+      }
+    };
+    const drawStyleImpact = (scale = radius, alpha = fade) => {
+      if (style === 'shotgun') {
+        burst(5, scale * 0.18, scale * 0.9, 3, '#ff8b5c', alpha * 0.85, angle - 0.4);
+        circle(effect.x + perpendicular.x * scale * 0.42, effect.y + perpendicular.y * scale * 0.42, scale * 0.13, '#ffd166', alpha * 0.9, 12);
+        circle(effect.x - perpendicular.x * scale * 0.42, effect.y - perpendicular.y * scale * 0.42, scale * 0.13, '#ffd166', alpha * 0.9, 12);
+      } else if (style === 'basketball' || style === 'rhythm') {
+        drawBeat(effect.x, effect.y, scale * 0.85, angle + this.renderTime * 1.4, alpha);
+        for (let index = 0; index < 3; index += 1) diamond(effect.x + perpendicular.x * (index - 1) * scale * 0.32, effect.y + perpendicular.y * (index - 1) * scale * 0.32, scale * 0.1, angle + index, '#f3d6ff', alpha * 0.72);
+      } else if (style === 'ram' || style === 'heavy') {
+        drawRam(effect.x, effect.y, scale, angle, alpha);
+        burst(5, scale * 0.3, scale * 1.12, 4, '#f6bd60', alpha * 0.68, angle - 0.45);
+      } else if (style === 'sniper') {
+        line(effect.x - perpendicular.x * scale, effect.y - perpendicular.y * scale, effect.x + perpendicular.x * scale, effect.y + perpendicular.y * scale, 3, '#efff8f', alpha * 0.92);
+        line(effect.x - direction.x * scale * 0.72, effect.y - direction.y * scale * 0.72, effect.x + direction.x * scale * 0.72, effect.y + direction.y * scale * 0.72, 2, '#4ecdc4', alpha * 0.72);
+        diamond(effect.x, effect.y, scale * 0.34, angle + Math.PI / 4, '#efff8f', alpha * 0.9);
+      } else if (style === 'bark') {
+        drawLightning(effect.x, effect.y, scale * 1.2, angle, alpha);
+        arc(effect.x, effect.y, scale * 0.64, angle - 1.15, angle + 1.15, 3, '#ffcf70', alpha * 0.72);
+      } else if (style === 'hiss') {
+        drawW(effect.x, effect.y, scale * 0.95, alpha);
+        burst(4, scale * 0.25, scale * 0.9, 2, '#f1faee', alpha * 0.72, -0.35);
+      } else if (style === 'magic') {
+        drawMagic(effect.x, effect.y, scale, angle + elapsed, alpha);
+      } else if (style === 'blink') {
+        for (let index = 0; index < 4; index += 1) diamond(effect.x + Math.cos(index * Math.PI / 2) * scale * 0.62, effect.y + Math.sin(index * Math.PI / 2) * scale * 0.62, scale * 0.18, index * Math.PI / 2, '#ff595e', alpha * 0.82);
+      } else if (style === 'claw') {
+        drawClaws(effect.x, effect.y, scale * 0.92, angle - 0.65 + elapsed * 1.4, alpha);
+      } else if (style === 'milkBubble') {
+        drawBubble(effect.x, effect.y, scale * 0.48, alpha);
+        drawBubble(effect.x + perpendicular.x * scale * 0.55, effect.y + perpendicular.y * scale * 0.55, scale * 0.2, alpha * 0.72);
+      } else if (style === 'delivery') {
+        drawDelivery(effect.x, effect.y, scale, angle, alpha);
+        burst(4, scale * 0.18, scale * 0.92, 2, '#f9c74f', alpha * 0.7, 0.2);
+      } else if (style === 'penguin') {
+        drawPenguin(effect.x, effect.y, scale * 0.45, angle, alpha);
+        line(effect.x - scale * 0.7, effect.y + scale * 0.72, effect.x - scale * 0.4, effect.y + scale * 0.72, 3, '#f9c74f', alpha * 0.7);
+        line(effect.x + scale * 0.4, effect.y + scale * 0.72, effect.x + scale * 0.7, effect.y + scale * 0.72, 3, '#f9c74f', alpha * 0.7);
+      } else if (style === 'shield') {
+        drawShield(effect.x, effect.y, scale * 0.9, angle, alpha);
+      } else if (style === 'poke') {
+        line(effect.x - direction.x * scale, effect.y - direction.y * scale, effect.x + direction.x * scale, effect.y + direction.y * scale, 4, '#a8dadc', alpha * 0.9);
+        triangle(effect.x + direction.x * scale * 0.9, effect.y + direction.y * scale * 0.9, scale * 0.25, angle, '#f1faee', alpha * 0.86);
+      } else if (style === 'melon' || style === 'watermelon') {
+        drawMelon(effect.x, effect.y, scale * 0.88, angle, alpha);
+        burst(4, scale * 0.32, scale * 1.05, 2, '#cce58b', alpha * 0.72, angle);
+      } else {
+        drawLightning(effect.x, effect.y, scale, angle, alpha);
+      }
+    };
+    const drawSpawn = () => {
+      if (style === 'magic') {
+        drawMagic(effect.x, effect.y, radius, this.renderTime * 0.8, fade * 0.9);
+        diamond(effect.x, effect.y, radius * 0.22, this.renderTime, '#f1faee', fade * 0.7);
+      } else if (style === 'heavy' || style === 'ram') {
+        drawRam(effect.x, effect.y, radius * 0.72, this.renderTime * 0.22, fade * 0.78);
+        burst(5, radius * 0.32, radius * 0.82, 3, '#f6bd60', fade * 0.58);
+      } else if (style === 'penguin') {
+        drawPenguin(effect.x, effect.y, radius * 0.38, 0, fade * 0.82);
+        line(effect.x - radius * 0.72, effect.y + radius * 0.56, effect.x - radius * 0.42, effect.y + radius * 0.56, 2, '#f9c74f', fade * 0.62);
+        line(effect.x + radius * 0.42, effect.y + radius * 0.56, effect.x + radius * 0.72, effect.y + radius * 0.56, 2, '#f9c74f', fade * 0.62);
+      } else if (style === 'melon') {
+        drawMelon(effect.x, effect.y, radius * 0.58, 0, fade * 0.85);
+      } else if (style === 'delivery') {
+        drawPackage(effect.x, effect.y, radius * 0.52, -elapsed, fade * 0.86);
+      } else {
+        drawLightning(effect.x, effect.y, radius * 0.72, this.renderTime, fade * 0.78);
+      }
+    };
+
+    if (effect.type === 'attack') {
+      drawStyleAttack(effect.mode === 'ranged');
+      return;
+    }
+
+    if (effect.type === 'impact') {
+      drawStyleImpact(effect.radius * (0.55 + elapsed * 0.9), fade * (1 - elapsed * 0.12));
+      if (effect.knockback > 50) {
+        const pushLength = Math.min(60, effect.knockback * 0.22) * (0.45 + elapsed * 0.55);
+        line(effect.x - direction.x * 9, effect.y - direction.y * 9, effect.x + direction.x * pushLength, effect.y + direction.y * pushLength, 4, '#f4c66a', fade * 0.72);
+        triangle(effect.x + direction.x * pushLength, effect.y + direction.y * pushLength, 7, angle, '#f4c66a', fade * 0.72);
       }
       return;
     }
 
     if (effect.type === 'spawn') {
-      drawRing(radius, 4, fade * 0.9);
-      renderer.drawCircle(effect.x, effect.y, Math.max(3, radius * 0.16), color, 16, fade * 0.18);
-      for (let index = 0; index < 6; index += 1) {
-        const angle = index * Math.PI / 3 - elapsed * 3.5;
-        const orbit = radius * (0.58 + pulse * 0.12);
-        renderer.drawCircle(effect.x + Math.cos(angle) * orbit, effect.y + Math.sin(angle) * orbit, 4, color, 12, fade * 0.68);
-      }
+      drawSpawn();
       return;
     }
 
     if (effect.type === 'teleport') {
       if (Number.isFinite(effect.fromX) && Number.isFinite(effect.fromY)) {
-        renderer.drawLine(effect.fromX, effect.fromY, effect.x, effect.y, 3, color, fade * 0.36);
+        line(effect.fromX, effect.fromY, effect.x, effect.y, 2, '#a98bff', fade * 0.28);
       }
-      if (effect.phase === 'out') {
-        drawRing(effect.radius * (0.62 + elapsed * 0.7), 5, fade * 0.9);
-        renderer.drawCircle(effect.x, effect.y, Math.max(2, effect.radius * 0.32 * progress), color, 16, fade * 0.28);
-      } else {
-        drawRing(effect.radius * (1.22 - elapsed * 0.4), 6, fade * 0.9);
-        drawRing(effect.radius * (0.46 + elapsed * 0.22), 3, fade * 0.62);
-        for (let index = 0; index < 8; index += 1) {
-          const angle = index * Math.PI / 4 + 0.18;
-          const inner = effect.radius * 0.36;
-          const outer = effect.radius * (0.66 + (index % 2) * 0.14);
-          renderer.drawLine(effect.x + Math.cos(angle) * inner, effect.y + Math.sin(angle) * inner, effect.x + Math.cos(angle) * outer, effect.y + Math.sin(angle) * outer, 3, color, fade * 0.66);
-        }
+      const portalScale = effect.radius * (effect.phase === 'out' ? 0.7 + elapsed * 0.55 : 1.05 - elapsed * 0.25);
+      for (let index = 0; index < 4; index += 1) {
+        const portalAngle = index * Math.PI / 2 + this.renderTime * 0.4;
+        diamond(effect.x + Math.cos(portalAngle) * portalScale * 0.58, effect.y + Math.sin(portalAngle) * portalScale * 0.58, portalScale * 0.16, portalAngle, '#a98bff', fade * 0.82);
       }
+      arc(effect.x, effect.y, portalScale * 0.72, -1.8 + elapsed, -0.45 + elapsed, 4, '#f1faee', fade * 0.76);
+      arc(effect.x, effect.y, portalScale * 0.72, 0.5 + elapsed, 1.85 + elapsed, 4, '#a98bff', fade * 0.7);
       return;
     }
 
     if (effect.type === 'charge') {
       if (Number.isFinite(effect.fromX) && Number.isFinite(effect.fromY)) {
-        const direction = normalize(effect.x - effect.fromX, effect.y - effect.fromY);
-        renderer.drawLine(effect.fromX, effect.fromY, effect.x, effect.y, 5, color, fade * 0.32);
-        renderer.drawLine(effect.x, effect.y, effect.x - direction.x * 30 - direction.y * 15, effect.y - direction.y * 30 + direction.x * 15, 5, color, fade * 0.8);
-        renderer.drawLine(effect.x, effect.y, effect.x - direction.x * 30 + direction.y * 15, effect.y - direction.y * 30 - direction.x * 15, 5, color, fade * 0.8);
+        const chargeDirection = normalize(effect.x - effect.fromX, effect.y - effect.fromY);
+        line(effect.fromX, effect.fromY, effect.x, effect.y, 4, '#ed6a5a', fade * 0.38);
+        drawRam(effect.x, effect.y, radius, Math.atan2(chargeDirection.y, chargeDirection.x), fade * 0.92);
+      } else {
+        drawRam(effect.x, effect.y, radius, angle, fade * 0.88);
       }
-      drawRing(radius * (0.9 + pulse * 0.12), 5, fade * 0.9);
-      drawRing(radius * 0.48, 3, fade * 0.65);
       return;
     }
 
     if (effect.type === 'summon') {
-      drawRing(radius * (0.92 + pulse * 0.16), 6, fade * 0.92);
-      drawRing(radius * 0.5, 3, fade * 0.76);
-      renderer.drawCircle(effect.x, effect.y, radius * 0.18, color, 16, fade * 0.22);
-      const count = Math.max(2, Math.min(4, effect.count ?? 2));
-      for (let index = 0; index < count; index += 1) {
-        const angle = index * Math.PI * 2 / count + this.renderTime * 1.4;
-        const orbit = radius * 0.72;
-        renderer.drawLine(effect.x, effect.y, effect.x + Math.cos(angle) * orbit, effect.y + Math.sin(angle) * orbit, 2, color, fade * 0.32);
-        renderer.drawCircle(effect.x + Math.cos(angle) * orbit, effect.y + Math.sin(angle) * orbit, 6, color, 14, fade * 0.8);
-      }
+      drawMagic(effect.x, effect.y, radius, this.renderTime * 0.7, fade * 0.92);
       return;
     }
 
     if (effect.type === 'shield') {
-      drawRing(radius * 0.9, 5, fade * 0.8);
-      const points = 6;
-      for (let index = 0; index < points; index += 1) {
-        const firstAngle = index * Math.PI * 2 / points - Math.PI / 2;
-        const secondAngle = (index + 1) * Math.PI * 2 / points - Math.PI / 2;
-        renderer.drawLine(effect.x + Math.cos(firstAngle) * radius * 0.72, effect.y + Math.sin(firstAngle) * radius * 0.72, effect.x + Math.cos(secondAngle) * radius * 0.72, effect.y + Math.sin(secondAngle) * radius * 0.72, 3, color, fade * 0.78);
-      }
+      drawShield(effect.x, effect.y, radius, angle, fade * 0.92);
       return;
     }
 
     if (effect.type === 'taunt') {
-      drawRing(radius * (0.7 + elapsed * 0.5), 5, fade * 0.9);
-      drawRing(radius * (0.38 + elapsed * 0.26), 3, fade * 0.62);
-      for (let index = 0; index < 6; index += 1) {
-        const angle = index * Math.PI / 3;
-        renderer.drawLine(effect.x + Math.cos(angle) * radius * 0.55, effect.y + Math.sin(angle) * radius * 0.55, effect.x + Math.cos(angle) * radius * 0.84, effect.y + Math.sin(angle) * radius * 0.84, 3, color, fade * 0.65);
-      }
+      drawLightning(effect.x, effect.y, radius * 0.9, 0, fade * 0.82);
+      arc(effect.x, effect.y, radius * 0.72, -1.1, 1.1, 4, '#ffcf70', fade * 0.78);
+      burst(6, radius * 0.72, radius * 0.95, 3, '#ffcf70', fade * 0.72, Math.PI / 6);
       return;
     }
 
     if (effect.type === 'telegraph') {
-      const segments = 12;
-      const telegraphRadius = effect.radius * (0.9 + progress * 0.2);
-      for (let index = 0; index < segments; index += 2) {
-        const firstAngle = index * Math.PI * 2 / segments;
-        const secondAngle = (index + 1) * Math.PI * 2 / segments;
-        renderer.drawLine(effect.x + Math.cos(firstAngle) * telegraphRadius, effect.y + Math.sin(firstAngle) * telegraphRadius, effect.x + Math.cos(secondAngle) * telegraphRadius, effect.y + Math.sin(secondAngle) * telegraphRadius, 3, color, fade * 0.9);
-      }
-      renderer.drawLine(effect.x - 12, effect.y, effect.x + 12, effect.y, 3, color, fade * 0.75);
-      renderer.drawLine(effect.x, effect.y - 12, effect.x, effect.y + 12, 3, color, fade * 0.75);
-      return;
-    }
-
-    if (effect.type === 'burst') {
-      renderer.drawCircle(effect.x, effect.y, radius * 0.2 * progress, color, 16, fade * 0.34);
-      for (let index = 0; index < 8; index += 1) {
-        const angle = index * Math.PI / 4 + elapsed * 0.45;
-        renderer.drawLine(effect.x + Math.cos(angle) * radius * 0.2, effect.y + Math.sin(angle) * radius * 0.2, effect.x + Math.cos(angle) * radius * (0.7 + elapsed * 0.35), effect.y + Math.sin(angle) * radius * (0.7 + elapsed * 0.35), 4, color, fade * 0.76);
+      if (style === 'delivery') {
+        drawPackage(effect.x, effect.y, radius * 0.58, 0, fade * 0.88);
+        for (let index = 0; index < 4; index += 1) {
+          const start = index * Math.PI / 2 + elapsed * 0.8;
+          line(effect.x + Math.cos(start) * radius * 0.72, effect.y + Math.sin(start) * radius * 0.72, effect.x + Math.cos(start + 0.58) * radius * 0.72, effect.y + Math.sin(start + 0.58) * radius * 0.72, 3, '#f9c74f', fade * 0.74);
+        }
+      } else if (style === 'hiss') {
+        drawW(effect.x, effect.y, radius * 0.8, fade * 0.92);
+      } else if (style === 'melon') {
+        drawMelon(effect.x, effect.y, radius * 0.62, elapsed, fade * 0.84);
+      } else {
+        diamond(effect.x, effect.y, radius * 0.28, elapsed, color, fade * 0.72);
+        line(effect.x - radius * 0.58, effect.y, effect.x + radius * 0.58, effect.y, 2, color, fade * 0.62);
+        line(effect.x, effect.y - radius * 0.58, effect.x, effect.y + radius * 0.58, 2, color, fade * 0.62);
       }
       return;
     }
 
-    if (effect.type === 'death') {
-      renderer.drawRing(effect.x, effect.y, radius * (1.5 - progress * 0.4), 7, color, 28, progress * 0.66);
-      renderer.drawCircle(effect.x, effect.y, radius * 0.5 * progress, color, 20, progress * 0.22);
+    if (effect.type === 'burst' || effect.type === 'death') {
+      drawStyleImpact(radius * (effect.type === 'death' ? 1.15 : 0.9), fade);
       return;
     }
 
     if (effect.type === 'heal') {
-      renderer.drawRing(effect.x, effect.y, radius, 5, '#9cf6a6', 28, progress * 0.85);
-      renderer.drawLine(effect.x - radius * 0.35, effect.y, effect.x + radius * 0.35, effect.y, 4, '#9cf6a6', progress);
-      renderer.drawLine(effect.x, effect.y - radius * 0.35, effect.x, effect.y + radius * 0.35, 4, '#9cf6a6', progress);
-      return;
-    }
-
-    if (effect.type === 'buff') {
-      drawRing(radius * (0.78 + pulse * 0.14), 6, fade * 0.92);
-      drawRing(radius * 0.45, 3, fade * 0.72);
-      for (let index = 0; index < 6; index += 1) {
-        const angle = index * Math.PI / 3 + this.renderTime * 0.9;
-        const inner = radius * 0.56;
-        const outer = radius * (0.78 + pulse * 0.08);
-        renderer.drawLine(
-          effect.x + Math.cos(angle) * inner,
-          effect.y + Math.sin(angle) * inner,
-          effect.x + Math.cos(angle) * outer,
-          effect.y + Math.sin(angle) * outer,
-          4,
-          color,
-          fade * 0.7,
-        );
+      if (style === 'delivery') {
+        drawDelivery(effect.x, effect.y, radius * 0.9, -0.2, fade * 0.9);
+      } else {
+        drawBubble(effect.x - radius * 0.22, effect.y + radius * 0.08, radius * 0.42, fade * 0.82);
+        drawBubble(effect.x + radius * 0.27, effect.y - radius * 0.18, radius * 0.3, fade * 0.76);
       }
+      line(effect.x - radius * 0.34, effect.y, effect.x + radius * 0.34, effect.y, 4, '#9cf6a6', fade * 0.88);
+      line(effect.x, effect.y - radius * 0.34, effect.x, effect.y + radius * 0.34, 4, '#9cf6a6', fade * 0.88);
       return;
     }
 
-    if (effect.type === 'mark' || effect.type === 'skill') {
-      drawRing(radius, effect.type === 'mark' ? 3 : 5, fade * 0.85);
-      renderer.drawCircle(effect.x, effect.y, Math.max(2, radius * 0.22), color, 20, fade * 0.12);
+    if (effect.type === 'mark') {
+      if (style === 'claw') drawClaws(effect.x, effect.y, radius * 0.9, angle - 0.5 + elapsed * 1.3, fade * 0.88);
+      else if (style === 'delivery') drawPackage(effect.x, effect.y, radius * 0.62, angle, fade * 0.84);
+      else diamond(effect.x, effect.y, radius * 0.42, angle, color, fade * 0.82);
       return;
     }
 
-    drawRing(radius, 5, fade * 0.8);
-    renderer.drawCircle(effect.x, effect.y, Math.max(2, radius * 0.22), color, 20, fade * 0.12);
+    if (effect.type === 'skill') {
+      if (style === 'magic') drawMagic(effect.x, effect.y, radius, angle + elapsed, fade * 0.9);
+      else if (style === 'rhythm' || style === 'basketball') drawBeat(effect.x, effect.y, radius, angle + this.renderTime, fade * 0.9);
+      else if (style === 'hiss') drawW(effect.x, effect.y, radius * 0.82, fade * 0.92);
+      else if (style === 'blink') drawClaws(effect.x, effect.y, radius * 0.9, angle + elapsed, fade * 0.86);
+      else drawStyleImpact(radius * 0.82, fade * 0.84);
+    }
   }
 
   drawUnit(unit) {
@@ -1320,40 +1673,77 @@ class MemeWarApp {
     if (deathProgress <= 0) return;
     const radius = data.radius * (alive ? 1 : 0.78);
     const factionColor = unit.side === 'player' ? '#63e0cb' : '#ff796a';
-    const isSelected = this.phase === 'prep' && this.selectedUnitId === data.id;
     const pulse = alive && unit.pulse > 0 ? 1 + Math.sin(this.renderTime * 36) * 0.08 : 1;
-    const drawRadius = radius * pulse;
+    const facing = Number.isFinite(unit.facing) ? unit.facing : (unit.side === 'player' ? 0 : Math.PI);
+    const spriteFacing = data.spriteFacing;
+    const horizontalFacing = Math.cos(facing);
+    const desiredFacing = Math.abs(horizontalFacing) < 0.18
+      ? (unit.side === 'player' ? 'right' : 'left')
+      : (horizontalFacing >= 0 ? 'right' : 'left');
+    const spriteFlipX = (spriteFacing === 'left' || spriteFacing === 'right') && desiredFacing !== spriteFacing;
+    const actionDuration = Math.max(0.001, unit.actionDuration ?? 0);
+    const actionProgress = actionDuration > 0 ? clamp(1 - (unit.actionLife ?? 0) / actionDuration, 0, 1) : 0;
+    const actionPulse = Math.sin(Math.PI * actionProgress);
+    const actionDirectionX = Number.isFinite(unit.actionDirectionX) ? unit.actionDirectionX : Math.cos(facing);
+    const actionDirectionY = Number.isFinite(unit.actionDirectionY) ? unit.actionDirectionY : Math.sin(facing);
+    const actionDistance = unit.actionType === 'meleeAttack' ? 14
+      : unit.actionType === 'rangedAttack' ? -6
+        : unit.actionType === 'skill' ? 5
+          : unit.actionType === 'death' ? -8 : 0;
+    const hurtDuration = Math.max(0.001, unit.hurtDuration ?? 0);
+    const hurtRatio = hurtDuration > 0 ? clamp((unit.hurtLife ?? 0) / hurtDuration, 0, 1) : 0;
+    const hurtPulse = Math.sin(Math.PI * (1 - hurtRatio));
+    const hurtDirectionX = Number.isFinite(unit.hurtDirectionX) ? unit.hurtDirectionX : 0;
+    const hurtDirectionY = Number.isFinite(unit.hurtDirectionY) ? unit.hurtDirectionY : 0;
+    const hurtShake = hurtPulse * Math.sin(this.renderTime * 90 + (unit.id?.length ?? 0)) * Math.min(7, radius * 0.24);
+    const renderX = unit.x + actionDirectionX * actionDistance * actionPulse - hurtDirectionX * hurtPulse * 4 - hurtDirectionY * hurtShake;
+    const renderY = unit.y + actionDirectionY * actionDistance * actionPulse - hurtDirectionY * hurtPulse * 4 + hurtDirectionX * hurtShake;
+    const actionScale = 1 + actionPulse * (unit.actionType === 'meleeAttack' ? 0.1 : 0.045);
+    const hurtScale = 1 + hurtPulse * 0.075;
+    const drawRadius = radius * pulse * actionScale * hurtScale;
+    const hitTint = unit.hitFlash > 0 ? '#ffc1b7' : '#ffffff';
 
-    this.renderer.drawCircle(unit.x + 5, unit.y + 7, drawRadius + 3, '#030b12', 24, 0.34 * deathProgress);
+    this.renderer.drawRect(renderX + 5, renderY + drawRadius * 0.82, drawRadius * 1.35, 5, '#030b12', 0.24 * deathProgress);
     if (this.renderer.spriteReady && Number.isInteger(data.spriteIndex)) {
       const spriteSize = Math.max(data.radius * 3.0, 70) * (alive ? pulse : 0.9);
-      this.renderer.drawCircle(unit.x, unit.y, Math.max(5, drawRadius * 0.52), data.accent, 20, deathProgress * 0.2);
-      this.renderer.drawSprite(unit.x, unit.y - data.radius * 0.22, spriteSize, spriteSize, data.spriteIndex, (alive ? 0.98 : 0.44) * deathProgress, '#ffffff', unit.side === 'enemy');
+      this.renderer.drawSprite(renderX, renderY - data.radius * 0.22, spriteSize * actionScale * hurtScale, spriteSize * actionScale * hurtScale, data.spriteIndex, (alive ? 0.98 : 0.44) * deathProgress, hitTint, spriteFlipX);
     } else {
-      this.renderer.drawCircle(unit.x, unit.y, drawRadius, data.color, 24, (alive ? 0.94 : 0.42) * deathProgress);
-    }
-    this.renderer.drawRing(unit.x, unit.y, drawRadius + 4, isSelected ? 5 : 3, isSelected ? '#f4c66a' : factionColor, 24, deathProgress * 0.9);
-    if (!this.renderer.spriteReady || !Number.isInteger(data.spriteIndex)) {
-      this.renderer.drawCircle(unit.x, unit.y, Math.max(4, drawRadius * 0.28), data.accent, 16, deathProgress * 0.9);
+      this.renderer.drawRect(renderX, renderY, drawRadius * 1.55, drawRadius * 1.55, hitTint === '#ffffff' ? data.color : '#ff8b7e', (alive ? 0.94 : 0.42) * deathProgress);
     }
 
     if (alive) {
-      const facing = Number.isFinite(unit.facing) ? unit.facing : (unit.side === 'player' ? 0 : Math.PI);
-      this.renderer.drawLine(unit.x, unit.y, unit.x + Math.cos(facing) * (drawRadius + 10), unit.y + Math.sin(facing) * (drawRadius + 10), 3, data.accent, 0.75);
-      const hpRatio = clamp((unit.hp ?? data.hp) / Math.max(1, unit.maxHp ?? data.hp), 0, 1);
+      const maxHp = Math.max(1, unit.maxHp ?? data.hp);
+      const hpRatio = clamp((unit.hp ?? data.hp) / maxHp, 0, 1);
+      const delayedHpRatio = clamp(Math.max(hpRatio, (unit.barHp ?? unit.hp ?? data.hp) / maxHp), hpRatio, 1);
       const barWidth = Math.max(34, drawRadius * 2.3);
-      this.renderer.drawRect(unit.x, unit.y - drawRadius - 12, barWidth, 5, '#09151d', 0.88);
-      this.renderer.drawRect(unit.x - (barWidth * (1 - hpRatio)) / 2, unit.y - drawRadius - 12, barWidth * hpRatio, 5, hpRatio > 0.35 ? factionColor : '#ffb06a', 0.94);
-      if (unit.status?.stun > 0) this.renderer.drawRing(unit.x, unit.y, drawRadius + 10, 2, '#f4c66a', 14, 0.92);
-      if (unit.status?.taunt > 0) this.renderer.drawRing(unit.x, unit.y, drawRadius + 13, 2, '#ff796a', 14, 0.8);
-      if (unit.status?.guard > 0) this.renderer.drawRing(unit.x, unit.y, drawRadius + 9, 3, '#edf2f4', 24, 0.76);
-      if (unit.status?.supportUntil > (this.simulation?.time ?? 0)) this.renderer.drawRing(unit.x, unit.y, drawRadius + 16, 3, '#9cf6a6', 18, 0.9);
+      const barY = renderY - drawRadius - 12;
+      const barLeft = renderX - barWidth / 2;
+      this.renderer.drawRect(renderX, barY, barWidth, 5, '#09151d', 0.88);
+      if (delayedHpRatio > hpRatio + 0.005) {
+        const delayedWidth = barWidth * (delayedHpRatio - hpRatio);
+        this.renderer.drawRect(barLeft + barWidth * hpRatio + delayedWidth / 2, barY, delayedWidth, 5, '#bd5261', 0.76);
+      }
+      if (hpRatio > 0) this.renderer.drawRect(barLeft + barWidth * hpRatio / 2, barY, barWidth * hpRatio, 5, hpRatio > 0.35 ? factionColor : '#ffb06a', 0.94);
+      if (hurtPulse > 0.04) {
+        const hitX = unit.hitPointX ?? renderX;
+        const hitY = unit.hitPointY ?? renderY;
+        const hitDirection = normalize(hitX - renderX, hitY - renderY);
+        const hitPerpendicular = { x: -hitDirection.y, y: hitDirection.x };
+        const hitLength = 8 + hurtPulse * 8;
+        this.renderer.drawLine(hitX - hitPerpendicular.x * hitLength, hitY - hitPerpendicular.y * hitLength, hitX + hitPerpendicular.x * hitLength, hitY + hitPerpendicular.y * hitLength, 3, '#ff9b8d', hurtPulse * 0.82);
+        this.renderer.drawLine(hitX - hitDirection.x * hitLength * 0.8, hitY - hitDirection.y * hitLength * 0.8, hitX + hitDirection.x * hitLength * 0.8, hitY + hitDirection.y * hitLength * 0.8, 2, '#fff1e6', hurtPulse * 0.7);
+      }
+      if (unit.status?.stun > 0) this.renderer.drawRect(renderX, barY - 7, 12, 3, '#f4c66a', 0.86);
+      if (unit.status?.taunt > 0) this.renderer.drawRect(renderX, barY - 12, 10, 3, '#ff796a', 0.8);
+      if (unit.status?.guard > 0) {
+        this.renderer.drawLine(renderX - 8, renderY - drawRadius - 7, renderX, renderY - drawRadius - 13, 2, '#edf2f4', 0.82);
+        this.renderer.drawLine(renderX, renderY - drawRadius - 13, renderX + 8, renderY - drawRadius - 7, 2, '#edf2f4', 0.82);
+      }
     }
   }
 
   updateWorldLabels() {
     const visibleUnits = this.battleUnits;
-    this.syncFileSpriteFallback(visibleUnits);
     const activeIds = new Set();
     for (const unit of visibleUnits) {
       if (!unit.data || unit.alive === false && (unit.deadFor ?? 0) > 3) continue;
@@ -1366,10 +1756,9 @@ class MemeWarApp {
         this.worldLabels.append(label);
       }
       const isRetreating = this.phase === 'battle' && unit.alive !== false && unit.intent === 'retreat';
-      const isSupported = this.phase === 'battle' && unit.alive !== false && unit.status?.supportUntil > (this.simulation?.time ?? 0);
-      label.className = `world-label${unit.side === 'enemy' ? ' enemy' : ''}${isRetreating ? ' retreat' : ''}${isSupported ? ' support' : ''}`;
+      label.className = `world-label${unit.side === 'enemy' ? ' enemy' : ''}${isRetreating ? ' retreat' : ''}`;
       const hpText = this.phase === 'prep' ? '' : ` · ${Math.max(0, Math.ceil(unit.hp ?? 0))}`;
-      label.textContent = `${unit.data.name}${isRetreating ? ' · 后撤' : ''}${isSupported ? ' · 增益' : ''}${hpText}`;
+      label.textContent = `${unit.data.name}${isRetreating ? ' · 后撤' : ''}${hpText}`;
       const screen = this.renderer.worldToScreen(unit.x, unit.y - unit.data.radius - 30);
       label.style.left = `${screen.x}px`;
       label.style.top = `${screen.y}px`;
@@ -1410,43 +1799,34 @@ class MemeWarApp {
         this.effectLabelNodes.delete(id);
       }
     }
-  }
 
-  syncFileSpriteFallback(visibleUnits) {
-    const shouldShow = IS_FILE_PROTOCOL && !this.renderer?.spriteReady && Boolean(this.worldSprites);
-    const activeIds = new Set();
-    if (shouldShow) {
-      for (const unit of visibleUnits) {
-        if (!unit.data || !Number.isInteger(unit.data.spriteIndex) || (unit.alive === false && (unit.deadFor ?? 0) > 3)) continue;
-        const id = unit.id ?? `${unit.side}-${unit.data.id}-${unit.x}-${unit.y}`;
-        activeIds.add(id);
-        let sprite = this.spriteNodes.get(id);
-        if (!sprite) {
-          sprite = makeElement('div', 'world-sprite');
-          this.spriteNodes.set(id, sprite);
-          this.worldSprites.append(sprite);
+    const activeFloatingTextIds = new Set();
+    if (this.simulation && this.phase !== 'prep') {
+      for (const text of this.simulation.floatingTexts) {
+        const id = text.id ?? `floating-${text.x}-${text.y}-${text.text}`;
+        activeFloatingTextIds.add(id);
+        let label = this.floatingTextNodes.get(id);
+        if (!label) {
+          label = makeElement('div', 'floating-text');
+          this.floatingTextNodes.set(id, label);
+          this.worldLabels.append(label);
         }
-        const data = unit.data;
-        const alive = unit.alive !== false;
-        const deathProgress = alive ? 1 : clamp(1 - (unit.deadFor ?? 0) / 3, 0, 1);
-        const pulse = alive && unit.pulse > 0 ? 1 + Math.sin(this.renderTime * 36) * 0.08 : 1;
-        const size = Math.max(data.radius * 3.0, 70) * (alive ? pulse : 0.9) * this.renderer.camera.zoom;
-        const screen = this.renderer.worldToScreen(unit.x, unit.y - data.radius * 0.22);
-        const column = data.spriteIndex % 4;
-        const row = Math.floor(data.spriteIndex / 4);
-        sprite.style.left = `${screen.x}px`;
-        sprite.style.top = `${screen.y}px`;
-        sprite.style.width = `${size}px`;
-        sprite.style.height = `${size}px`;
-        sprite.style.opacity = String((alive ? 0.98 : 0.44) * deathProgress);
-        sprite.style.backgroundImage = `url("${UNIT_TEXTURE_URL}")`;
-        sprite.style.backgroundPosition = `${column * (100 / 3)}% ${row * (100 / 3)}%`;
+        const lifeRatio = clamp(text.life / Math.max(0.2, text.maxLife ?? 0.82), 0, 1);
+        const kind = text.kind === 'heal' ? 'heal' : 'damage';
+        label.className = `floating-text ${kind}${text.critical ? ' critical' : ''}`;
+        label.textContent = text.text;
+        label.style.setProperty('--float-color', text.color ?? (kind === 'heal' ? '#9cf6a6' : '#fff1e6'));
+        const screen = this.renderer.worldToScreen(text.x, text.y);
+        label.style.left = `${screen.x}px`;
+        label.style.top = `${screen.y}px`;
+        label.style.transform = `translate(-50%, -50%) translate(${text.offsetX ?? 0}px, 0) scale(${0.82 + (1 - lifeRatio) * 0.18})`;
+        label.style.opacity = this.isScreenVisible(screen.x, screen.y) ? String(clamp(lifeRatio * 1.7, 0, 1)) : '0';
       }
     }
-    for (const [id, node] of this.spriteNodes.entries()) {
-      if (!activeIds.has(id)) {
+    for (const [id, node] of this.floatingTextNodes.entries()) {
+      if (!activeFloatingTextIds.has(id)) {
         node.remove();
-        this.spriteNodes.delete(id);
+        this.floatingTextNodes.delete(id);
       }
     }
   }

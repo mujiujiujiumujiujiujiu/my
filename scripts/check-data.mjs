@@ -15,25 +15,25 @@ for (const unit of units.units) {
   if (!Number.isFinite(unit.hp) || !Number.isFinite(unit.price) || !Number.isFinite(unit.radius)) {
     throw new Error(`units.json: ${unit.id} 数值不完整`);
   }
+  if (unit.moveMultiplier !== undefined && (!Number.isFinite(unit.moveMultiplier) || unit.moveMultiplier <= 0)) {
+    throw new Error(`units.json: ${unit.id} moveMultiplier 必须为正数`);
+  }
 }
 for (const level of levels.levels) {
   if (levelIds.has(level.id)) throw new Error(`levels.json: 重复关卡 id ${level.id}`);
   levelIds.add(level.id);
-  if (!Number.isFinite(level.budget) || !Array.isArray(level.enemies) || level.enemies.length === 0 || !Array.isArray(level.waves) || level.waves.length < 2) {
+  if (!Number.isFinite(level.budget) || !Array.isArray(level.enemies) || level.enemies.length === 0) {
     throw new Error(`levels.json: ${level.id} 结构不完整`);
   }
-  for (const entry of level.enemies) if (!ids.has(entry.unitId)) throw new Error(`levels.json: 未知单位 ${entry.unitId}`);
-  for (const wave of level.waves) {
-    if (!Array.isArray(wave) || wave.length === 0) throw new Error(`levels.json: ${level.id} 波次为空`);
-    for (const entry of wave) {
-      if (!ids.has(entry.unitId) || !Number.isFinite(entry.count) || entry.count < 1) {
-        throw new Error(`levels.json: ${level.id} 波次单位不完整`);
-      }
+  if ('waves' in level) throw new Error(`levels.json: ${level.id} 不应再包含波次数据`);
+  for (const entry of level.enemies) {
+    if (!ids.has(entry.unitId) || !Number.isFinite(entry.count) || entry.count < 1) {
+      throw new Error(`levels.json: ${level.id} 敌方单位不完整`);
     }
   }
 }
 
 const playable = units.units.filter((unit) => !unit.enemyOnly);
 const prices = playable.map((unit) => unit.price);
-if (Math.max(...prices) !== 500 || Math.min(...prices) !== 90) throw new Error('units.json: 价格范围不符合设计');
+if (Math.max(...prices) !== 500 || Math.min(...prices) !== 20) throw new Error('units.json: 价格范围不符合设计');
 console.log(`data ok: ${playable.length} playable units, ${levels.levels.length} levels`);

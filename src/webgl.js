@@ -108,11 +108,10 @@ function createSpriteProgram(gl) {
 class NativeWebGLRenderer {
   constructor(canvas) {
     this.canvas = canvas;
-    this.isMobile = window.matchMedia?.('(pointer: coarse)').matches || Math.min(window.innerWidth, window.innerHeight) <= 900;
     this.gl = canvas.getContext('webgl2', {
       alpha: false,
-      antialias: !this.isMobile,
-      powerPreference: this.isMobile ? 'low-power' : 'high-performance',
+      antialias: true,
+      powerPreference: 'high-performance',
     });
     if (!this.gl) throw new Error('当前浏览器没有可用的 WebGL2');
 
@@ -135,9 +134,12 @@ class NativeWebGLRenderer {
     this.spriteTintLocation = this.gl.getUniformLocation(this.spriteProgram, 'u_tint');
     this.spriteTexture = null;
     this.spriteReady = false;
+    this.backgroundTexture = null;
+    this.backgroundReady = false;
     this.width = 1;
     this.height = 1;
     this.dpr = 1;
+    this.qualityTier = 'low';
     this.camera = { x: 800, y: 410, zoom: 0.72 };
     this.resize();
 
@@ -148,48 +150,93 @@ class NativeWebGLRenderer {
   }
 
   loadTexture(url) {
+    return this.loadImageTexture(url, 'sprite');
+  }
+
+  loadBackgroundTexture(url) {
+    return this.loadImageTexture(url, 'background');
+  }
+
+  setQuality(tier = 'low') {
+    const nextTier = ['low', 'medium', 'high'].includes(tier) ? tier : 'low';
+    if (this.qualityTier === nextTier) return;
+    this.qualityTier = nextTier;
+    this.configureTexture(this.spriteTexture);
+    this.configureTexture(this.backgroundTexture);
+    this.resize();
+  }
+
+  qualitySegments(base = 24) {
+    const multiplier = this.qualityTier === 'low' ? 0.58 : this.qualityTier === 'medium' ? 0.78 : 1;
+    return Math.max(8, Math.round(base * multiplier));
+  }
+
+  getDprCap() {
+    return this.qualityTier === 'low' ? 1 : this.qualityTier === 'medium' ? 1.75 : 2.4;
+  }
+
+  configureTexture(texture) {
+    if (!texture) return;
+    const gl = this.gl;
+    gl.bindTexture(gl.TEXTURE_2D, texture);
+    const useMipmaps = this.qualityTier !== 'low';
+    if (useMipmaps) gl.generateMipmap(gl.TEXTURE_2D);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, useMipmaps ? gl.LINEAR_MIPMAP_LINEAR : gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    if (useMipmaps) {
+      const anisotropic = gl.getExtension('EXT_texture_filter_anisotropic')
+        || gl.getExtension('MOZ_EXT_texture_filter_anisotropic')
+        || gl.getExtension('WEBKIT_EXT_texture_filter_anisotropic');
+      if (anisotropic) {
+        const maxAnisotropy = gl.getParameter(anisotropic.MAX_TEXTURE_MAX_ANISOTROPY_EXT) || 1;
+        gl.texParameterf(gl.TEXTURE_2D, anisotropic.TEXTURE_MAX_ANISOTROPY_EXT, Math.min(4, maxAnisotropy));
+      }
+    }
+    gl.bindTexture(gl.TEXTURE_2D, null);
+  }
+
+  loadImageTexture(url, target = 'sprite') {
     return new Promise((resolve, reject) => {
       const image = new Image();
       image.decoding = 'async';
-      image.fetchPriority = 'low';
       image.onload = () => {
         const gl = this.gl;
         const texture = gl.createTexture();
         if (!texture) {
-          reject(new Error('无法创建手绘角色纹理'));
+          reject(new Error(target === 'background' ? '无法创建手绘战场纹理' : '无法创建手绘角色纹理'));
           return;
         }
-        try {
-          gl.bindTexture(gl.TEXTURE_2D, texture);
-          gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
-          gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-          gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-          gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-          gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-          gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image);
-          gl.bindTexture(gl.TEXTURE_2D, null);
+        gl.bindTexture(gl.TEXTURE_2D, texture);
+        gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
+        gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image);
+        gl.bindTexture(gl.TEXTURE_2D, null);
+        this.configureTexture(texture);
+        if (target === 'background') {
+          if (this.backgroundTexture) gl.deleteTexture(this.backgroundTexture);
+          this.backgroundTexture = texture;
+          this.backgroundReady = true;
+        } else {
+          if (this.spriteTexture) gl.deleteTexture(this.spriteTexture);
           this.spriteTexture = texture;
           this.spriteReady = true;
-          resolve();
-        } catch (error) {
-          gl.bindTexture(gl.TEXTURE_2D, null);
-          gl.deleteTexture(texture);
-          this.spriteTexture = null;
-          this.spriteReady = false;
-          reject(error);
         }
+        resolve();
       };
-      image.onerror = () => reject(new Error(`无法加载手绘角色纹理：${url}`));
+      image.onerror = () => reject(new Error(`${target === 'background' ? '无法加载手绘战场纹理' : '无法加载手绘角色纹理'}：${url}`));
       image.src = url;
     });
   }
 
   resize() {
     const rect = this.canvas.getBoundingClientRect();
-    const isVirtualLandscape = document.documentElement.classList.contains('is-virtual-landscape');
-    this.width = Math.max(1, isVirtualLandscape ? (this.canvas.offsetWidth || rect.height || 1) : (rect.width || this.canvas.clientWidth || 1));
-    this.height = Math.max(1, isVirtualLandscape ? (this.canvas.offsetHeight || rect.width || 1) : (rect.height || this.canvas.clientHeight || 1));
-    this.dpr = Math.min(window.devicePixelRatio || 1, this.isMobile ? 1.25 : 1.75);
+    const layoutWidth = this.canvas.clientWidth || this.canvas.offsetWidth || rect.width || 1;
+    const layoutHeight = this.canvas.clientHeight || this.canvas.offsetHeight || rect.height || 1;
+    this.width = Math.max(1, layoutWidth);
+    this.height = Math.max(1, layoutHeight);
+    this.dpr = Math.min(window.devicePixelRatio || 1, this.getDprCap());
     this.canvas.width = Math.round(this.width * this.dpr);
     this.canvas.height = Math.round(this.height * this.dpr);
     this.gl.viewport(0, 0, this.canvas.width, this.canvas.height);
@@ -223,13 +270,18 @@ class NativeWebGLRenderer {
 
   drawSprite(x, y, width, height, spriteIndex, alpha = 1, tint = '#ffffff', flipX = false) {
     if (!this.spriteReady || !this.spriteTexture || !Number.isInteger(spriteIndex)) return;
-    const gl = this.gl;
     const column = ((spriteIndex % 4) + 4) % 4;
     const row = Math.floor(spriteIndex / 4);
     const u1 = column / 4;
     const u2 = (column + 1) / 4;
     const v1 = row / 4;
     const v2 = (row + 1) / 4;
+    this.drawTextureRect(x, y, width, height, this.spriteTexture, u1, u2, v1, v2, alpha, tint, flipX);
+  }
+
+  drawTextureRect(x, y, width, height, texture, u1 = 0, u2 = 1, v1 = 0, v2 = 1, alpha = 1, tint = '#ffffff', flipX = false) {
+    if (!texture) return;
+    const gl = this.gl;
     const left = x - width / 2;
     const right = x + width / 2;
     const top = y - height / 2;
@@ -254,7 +306,7 @@ class NativeWebGLRenderer {
     gl.uniform1f(this.spriteZoomLocation, this.camera.zoom);
     gl.uniform4f(this.spriteTintLocation, rgba[0], rgba[1], rgba[2], rgba[3]);
     gl.activeTexture(gl.TEXTURE0);
-    gl.bindTexture(gl.TEXTURE_2D, this.spriteTexture);
+    gl.bindTexture(gl.TEXTURE_2D, texture);
     gl.uniform1i(this.spriteTextureLocation, 0);
     gl.drawArrays(gl.TRIANGLES, 0, 6);
   }
@@ -267,8 +319,28 @@ class NativeWebGLRenderer {
     this.drawVertices([x1, y1, x2, y1, x2, y2, x1, y1, x2, y2, x1, y2], color, this.gl.TRIANGLES, alpha);
   }
 
+  drawPolygon(points, color, alpha = 1) {
+    if (!Array.isArray(points) || points.length < 3) return;
+    const vertices = [];
+    const origin = points[0];
+    for (let index = 1; index < points.length - 1; index += 1) {
+      const first = points[index];
+      const second = points[index + 1];
+      vertices.push(origin.x, origin.y, first.x, first.y, second.x, second.y);
+    }
+    this.drawVertices(vertices, color, this.gl.TRIANGLES, alpha);
+  }
+
+  drawTriangle(x, y, size, angle, color, alpha = 1) {
+    const points = [];
+    for (let index = 0; index < 3; index += 1) {
+      const pointAngle = angle + index * Math.PI * 2 / 3 - Math.PI / 2;
+      points.push({ x: x + Math.cos(pointAngle) * size, y: y + Math.sin(pointAngle) * size });
+    }
+    this.drawPolygon(points, color, alpha);
+  }
+
   drawCircle(x, y, radius, color, segments = 24, alpha = 1) {
-    segments = this.isMobile ? Math.min(segments, 16) : segments;
     const vertices = [x, y];
     for (let index = 0; index <= segments; index += 1) {
       const angle = (index / segments) * Math.PI * 2;
@@ -285,7 +357,6 @@ class NativeWebGLRenderer {
   }
 
   drawRing(x, y, radius, thickness, color, segments = 32, alpha = 1) {
-    segments = this.isMobile ? Math.min(segments, 18) : segments;
     const vertices = [];
     const inner = Math.max(0.5, radius - thickness / 2);
     const outer = radius + thickness / 2;

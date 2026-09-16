@@ -7,6 +7,8 @@ const webglUrl = new URL('../src/webgl.js', import.meta.url);
 const mainUrl = new URL('../src/main.js', import.meta.url);
 const unitsUrl = new URL('../data/units.json', import.meta.url);
 const levelsUrl = new URL('../data/levels.json', import.meta.url);
+const atlasUrl = new URL('../assets/units-handdrawn-atlas.png', import.meta.url);
+const backgroundUrl = new URL('../assets/battlefield-watercolor-bg.png', import.meta.url);
 const styleStartMarker = '<!-- MEME_WAR_STATIC_STYLE_START -->';
 const styleEndMarker = '<!-- MEME_WAR_STATIC_STYLE_END -->';
 const startMarker = '<!-- MEME_WAR_EMBEDDED_DATA_START -->';
@@ -15,7 +17,7 @@ const runtimeStartMarker = '<!-- MEME_WAR_STATIC_RUNTIME_START -->';
 const runtimeEndMarker = '<!-- MEME_WAR_STATIC_RUNTIME_END -->';
 const checkOnly = process.argv.includes('--check');
 
-const [indexHtml, stylesCss, simSource, webglSource, mainSource, unitsJson, levelsJson] = await Promise.all([
+const [indexHtml, stylesCss, simSource, webglSource, mainSource, unitsJson, levelsJson, atlasBytes, backgroundBytes] = await Promise.all([
   readFile(indexUrl, 'utf8'),
   readFile(stylesUrl, 'utf8'),
   readFile(simUrl, 'utf8'),
@@ -23,6 +25,8 @@ const [indexHtml, stylesCss, simSource, webglSource, mainSource, unitsJson, leve
   readFile(mainUrl, 'utf8'),
   readFile(unitsUrl, 'utf8'),
   readFile(levelsUrl, 'utf8'),
+  readFile(atlasUrl),
+  readFile(backgroundUrl),
 ]);
 
 const embeddedData = {
@@ -44,9 +48,11 @@ for (const [start, end, label] of [
 }
 
 const embeddedStyle = `<style data-meme-war-static-source>${escapeInlineStyle(stylesCss)}</style>`;
-const embeddedTexture = `<script>window.MEME_WAR_TEXTURE_URL = './assets/units-handdrawn-atlas-mobile.webp';</script>`;
+const embeddedTexture = `<script>window.MEME_WAR_TEXTURE_DATA = ${JSON.stringify(`data:image/png;base64,${atlasBytes.toString('base64')}`)};</script>`;
+const embeddedBackground = `<script>window.MEME_WAR_BACKGROUND_DATA = ${JSON.stringify(`data:image/png;base64,${backgroundBytes.toString('base64')}`)};</script>`;
 const embeddedRuntime = [
   embeddedTexture,
+  embeddedBackground,
   `<script>${escapeInlineScript(simSource)}</script>`,
   `<script>${escapeInlineScript(webglSource)}</script>`,
   `<script>${escapeInlineScript(mainSource)}</script>`,
