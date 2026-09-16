@@ -1,10 +1,19 @@
 # 手绘角色资产
 
-`units-handdrawn-atlas.png` 是本项目根据用户提供的 14 张中文互联网梗图参考重新绘制的原创水彩墨线角色图集，不直接打包网络搜索结果或真人照片。`units-handdrawn-atlas-userrefs-v4.png` 保留本次最终定稿副本。
+`units-handdrawn-atlas.png` 是本项目根据用户提供的 14 张中文互联网梗图参考重新绘制的原创水彩墨线角色图集，不直接打包网络搜索结果或真人照片；它是当前运行时唯一的高清角色源图集。
 
-`battlefield-watercolor-bg.png` 是与角色图集同一套笔触的原创战场底图：左侧青绿色部署区、中间灰蓝缓冲带、右侧砖红敌方区域，运行时由原生 WebGL2 作为底层纹理绘制。
+`battlefield-watercolor-bg-high.jpg` 是与角色图集同一套笔触的原创高清战场底图：左侧青绿色部署区、中间灰蓝缓冲带、右侧砖红敌方区域，运行时由原生 WebGL2 作为底层纹理绘制。背景不需要透明通道，因此高清档使用高质量 JPEG，避免 PNG 体积拖慢后续升级。
 
-`units-handdrawn-atlas-low.png` 与 `battlefield-watercolor-bg-low.jpg` 是面向手机首屏的轻量派生资源：角色图集按 50% 尺寸缩小，底图按 50% 尺寸缩小后以 JPEG 压缩。它们只承担首屏和移动端画质档，桌面大屏仍可在空闲时换回高清资源。
+## 分段画质资源
+
+入口只内嵌最小档，加载顺序为“糊 → 不太糊 → 正常 → 高清”：
+
+- `units-handdrawn-atlas-blur.png`（631×623，50%）和 `battlefield-watercolor-bg-blur.jpg`（836×470，50%）：最快首帧。
+- `units-handdrawn-atlas-low.png`（946×935，75%）和 `battlefield-watercolor-bg-low.jpg`（1254×706，75%）：手机安全档。
+- `units-handdrawn-atlas-medium.png`（1010×997，80%）和 `battlefield-watercolor-bg-medium.jpg`（1338×753，80%）：正常档。
+- `units-handdrawn-atlas.png`（1262×1246，100%）和 `battlefield-watercolor-bg-high.jpg`（1672×941，100%）：高清档。
+
+普通设备在空闲时串行换档，避免同时抢占网络和解码内存；省流量、慢网或低内存设备加载到手机安全档后停止升级。所有派生档都来自当前高清源图集/底图，不再保留旧版 `userrefs-v2/v3/v4` 历史副本。
 
 ## 图集规格
 

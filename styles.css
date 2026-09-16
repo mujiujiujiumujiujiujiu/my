@@ -810,3 +810,29 @@ button:focus-visible, select:focus-visible { outline: 2px solid var(--teal); out
 }
 #app.is-auto-landscape.phase-battle #playArea,
 #app.is-auto-landscape.phase-result #playArea { grid-column: 1; grid-row: 2; }
+
+/* 手机结算页：自动横屏的物理宽度只有短边，卡片高度必须回到短边内。 */
+@media (max-width: 900px) {
+  #resultOverlay {
+    padding: 10px;
+    overflow: auto;
+    place-items: center;
+    align-content: center;
+  }
+  .result-card {
+    width: min(520px, calc(100% - 20px));
+    padding: 16px 20px 14px;
+  }
+  .result-stamp { height: 20px; margin-bottom: 6px; padding-inline: 7px; font-size: 9px; }
+  .result-card h2 { margin: 4px 0 2px; font-size: 28px; line-height: 1.05; }
+  .result-card > p { margin-bottom: 10px; font-size: 11px; line-height: 1.28; }
+  .result-stats div { gap: 2px; padding: 7px 0; }
+  .result-stats div:nth-child(even) { padding-left: 11px; }
+  .result-stats span, .rating-row span, .result-stats small { font-size: 9px; }
+  .result-stats strong { font-size: 15px; }
+  .rating-row { gap: 8px; padding: 9px 0 10px; }
+  .rating-row strong { font-size: 32px; }
+  .rating-row small { font-size: 9px; }
+  .result-actions { justify-content: stretch; gap: 8px; }
+  .result-actions .button { flex: 1; min-width: 0; min-height: 44px; padding-inline: 8px; font-size: 12px; }
+}

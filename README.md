@@ -35,7 +35,7 @@ npm run start
 
 ## 当前切片
 
-移动端布局将右侧说明 UI 移除，顶栏保留紧凑的剩余预算与 1×/2×/4× 速度按钮；手机首屏以内嵌轻量图集、压缩底图和 low DPR 进入，不再后台请求高清图，桌面设备才在空闲时补载高清资源。
+移动端布局将右侧说明 UI 移除，顶栏保留紧凑的剩余预算与 1×/2×/4× 速度按钮；手机首屏以内嵌轻量图集、压缩底图和 low DPR 进入，普通设备空闲后渐进补载高清战场纹理，省流量/慢网/低内存设备则保持轻量档。
 
 - 10 个数据驱动关卡，12 个可部署梗单位 + 1 个路障 + 敌方专属瓜摊老板。
 - 预算、费用、部署区限制、撤回退款、敌我存活计数。
@@ -54,15 +54,15 @@ npm run start
 - `src/main.js`：输入、场景切换、UI、音效反馈和主循环。
 - `data/units.json`：单位数值与技能数据源。
 - `data/levels.json`：关卡预算、敌方编队和提示。
-- `assets/units-handdrawn-atlas.png`：4 × 4 高清手绘角色图集；索引说明见 `assets/ASSET_NOTES.md`。
-- `assets/units-handdrawn-atlas-low.png`：手机首屏使用的 50% 轻量角色图集。
-- `assets/battlefield-watercolor-bg.png`：与角色图集匹配的高清 WebGL 水彩战场底图。
-- `assets/battlefield-watercolor-bg-low.jpg`：手机首屏使用的压缩水彩底图。
+- `assets/units-handdrawn-atlas-blur.png` / `assets/battlefield-watercolor-bg-blur.jpg`：50% 首帧图集与底图，静态入口只内嵌这一档。
+- `assets/units-handdrawn-atlas-low.png` / `assets/battlefield-watercolor-bg-low.jpg`：75% 手机安全档。
+- `assets/units-handdrawn-atlas-medium.png` / `assets/battlefield-watercolor-bg-medium.jpg`：80% 正常档。
+- `assets/units-handdrawn-atlas.png` / `assets/battlefield-watercolor-bg-high.jpg`：100% 高清运行时资源；背景改用高质量 JPEG 减少升级流量。
 - `scripts/check-data.mjs`：无依赖数据与语法检查。
 - `scripts/check-balance.mjs`：固定种子基准编队烟测，确保每关可在预算内完整清场。
-- `scripts/build-static.mjs`：将数据、样式、运行代码和轻量图集构建进 `index.html`，并检查静态入口是否过期。
-- `scripts/check-static-runtime.mjs`：防止可选纹理再次阻塞静态入口启动。
+- `scripts/build-static.mjs`：将数据、样式、运行代码和 50% 首帧图集构建进 `index.html`，并检查静态入口是否过期。
+- `scripts/check-static-runtime.mjs`：防止高清档阻塞静态入口启动，并守住四档渐进加载链。
 - `PLAY_GAME.cmd`：Windows 双击启动入口。
 - `scripts/launch.mjs`：启动服务器、等待端口就绪并打开浏览器。
 
-这是原型阶段的可玩切片，尚未包含存档、联网、逐帧骨骼动画和商用音频；当前动作表现由原生 WebGL 几何特效与图集角色组合完成。移动端先以内嵌轻量图集、低 DPR/低特效预算进入准备界面，不再后台请求高清图；桌面设备才在空闲时补载高清资源。顶栏保留紧凑的剩余预算与 1×/2×/4× 速度控制；`index.html` 是可直接双击运行、也可直接部署到 GitHub Pages 的静态入口。
+这是原型阶段的可玩切片，尚未包含存档、联网、逐帧骨骼动画和商用音频；当前动作表现由原生 WebGL 几何特效与图集角色组合完成。移动端先以内嵌 50% 首帧资源、低 DPR/低特效预算进入准备界面，然后按“糊 → 不太糊 → 正常 → 高清”逐档换图；普通设备最终补载高清纹理，受限设备停在 75% 安全档。顶栏保留紧凑的剩余预算与 1×/2×/4× 速度控制；`index.html` 是可直接双击运行、也可直接部署到 GitHub Pages 的静态入口。

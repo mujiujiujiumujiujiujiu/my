@@ -10,8 +10,8 @@ const indexHtml = await readFile(new URL('../index.html', import.meta.url), 'utf
 if (mainSource.includes("await this.renderer.loadTexture('./assets/units-handdrawn-atlas.png')")) {
   throw new Error('main.js: 可选纹理不能阻塞进入准备阶段');
 }
-if (!mainSource.includes('this.renderer.loadTexture(UNIT_TEXTURE_URL)') || !mainSource.includes('Promise.allSettled')) {
-  throw new Error('main.js: 缺少渐进高清纹理加载与失败回退处理');
+if (!mainSource.includes('loadTextureStage') || !mainSource.includes('TEXTURE_STAGES') || !mainSource.includes('Promise.allSettled')) {
+  throw new Error('main.js: 缺少四档纹理渐进加载与失败回退处理');
 }
 if (!mainSource.includes('floatingTextNodes')) {
   throw new Error('main.js: 缺少战斗伤害数字渲染层');
@@ -28,11 +28,19 @@ if (!mainSource.includes("style === 'basketball'") || !simSource.includes('proje
 if (!mainSource.includes('larger world Y') || !mainSource.includes('sort((first, second)')) {
   throw new Error('main.js: 缺少按纵向位置执行的战场遮挡排序');
 }
-if (!mainSource.includes('scheduleProgressiveAssets') || !webglSource.includes('qualityTier') || !webglSource.includes('qualitySegments')) {
-  throw new Error('渐进画质回归检查失败');
+if (!mainSource.includes('scheduleProgressiveAssets') || !mainSource.includes("tier: 'blur'") || !mainSource.includes("tier: 'high'") || !webglSource.includes('qualityTier') || !webglSource.includes('qualitySegments')) {
+  throw new Error('四档渐进画质回归检查失败');
+}
+if (!mainSource.includes('units-handdrawn-atlas-medium.png')
+  || !mainSource.includes('battlefield-watercolor-bg-medium.jpg')
+  || !mainSource.includes('battlefield-watercolor-bg-high.jpg')) {
+  throw new Error('四档渐进画质缺少正常档或高清档资源');
 }
 if (!mainSource.includes('mobileViewport') || !mainSource.includes('stayLight')) {
-  throw new Error('移动端必须停留在轻量资源档，避免后台解码高清素材');
+  throw new Error('手机首帧必须先使用轻量资源，并保留受限设备的低画质保护');
+}
+if (!mainSource.includes('const stayLight = constrained || memoryLimited;') || !mainSource.includes('mobileViewport ? 1800 : 1200')) {
+  throw new Error('手机轻量首帧之后必须允许普通设备渐进升级高清纹理');
 }
 if (!mainSource.includes('getViewportMetrics') || !mainSource.includes('isAutoLandscape') || !mainSource.includes('ResizeObserver')) {
   throw new Error('移动端长边方向与布局尺寸观察回归检查失败');
@@ -43,7 +51,7 @@ if (!mainSource.includes('pointerStillInDock') || !mainSource.includes('getPoint
 if (!mainSource.includes('getDeploymentBounds') || !mainSource.includes('PLAYER_DEPLOY_BOTTOM')) {
   throw new Error('部署区可见范围回归检查失败');
 }
-if (!webglSource.includes('generateMipmap') || !webglSource.includes('return this.qualityTier === \'low\' ? 1 : this.qualityTier === \'medium\' ? 1.75 : 2.4')) {
+if (!webglSource.includes('generateMipmap') || !webglSource.includes('mobileViewport ? 2 : 1') || !webglSource.includes('this.qualityTier === \'medium\' ? 1.75 : 2.4')) {
   throw new Error('移动端高清纹理与 DPR 回归检查失败');
 }
 if (!stylesSource.includes('#app.phase-battle, #app.phase-result { grid-template-rows: 64px minmax(0, 1fr) 0;') || !stylesSource.includes('#battlefieldShell { inset: 0; }')) {
@@ -73,11 +81,11 @@ if (/<script\s+src=/i.test(indexHtml)) {
 if (/<link\s+rel=["']stylesheet["']/i.test(indexHtml)) {
   throw new Error('index.html: 直接打开入口不能依赖外部样式表');
 }
-if (!indexHtml.includes('window.MEME_WAR_TEXTURE_LOW_DATA')) {
-  throw new Error('index.html: 缺少静态内嵌轻量图集');
+if (!indexHtml.includes('window.MEME_WAR_TEXTURE_BLUR_DATA')) {
+  throw new Error('index.html: 缺少静态内嵌模糊档图集');
 }
-if (!indexHtml.includes('window.MEME_WAR_BACKGROUND_LOW_DATA')) {
-  throw new Error('index.html: 缺少静态内嵌轻量战场底图');
+if (!indexHtml.includes('window.MEME_WAR_BACKGROUND_BLUR_DATA')) {
+  throw new Error('index.html: 缺少静态内嵌模糊档战场底图');
 }
 if (indexHtml.includes('orientationNotice') || indexHtml.includes('请横屏使用') || indexHtml.includes('is-phone-portrait')) {
   throw new Error('index.html: 入口不应依赖横屏提醒，必须自动逻辑横屏渲染');
@@ -93,6 +101,10 @@ if (!stylesSource.includes('#sidePanel { display: none !important; }')) {
 }
 if (!stylesSource.includes('#topbar .budget-stat {\n    display: flex !important;')) {
   throw new Error('手机顶栏必须保留紧凑的剩余预算');
+}
+if (!stylesSource.includes('/* 手机结算页：自动横屏的物理宽度只有短边，卡片高度必须回到短边内。 */')
+  || !stylesSource.includes('.result-actions .button { flex: 1;')) {
+  throw new Error('手机结算页必须压缩卡片并保留可点击的下一关/重试按钮');
 }
 
 console.log('static runtime guard ok: full-board HUD, automatic landscape rendering, mobile light assets and adaptive texture quality are wired');

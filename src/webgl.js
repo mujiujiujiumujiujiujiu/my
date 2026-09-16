@@ -139,7 +139,7 @@ class NativeWebGLRenderer {
     this.width = 1;
     this.height = 1;
     this.dpr = 1;
-    this.qualityTier = 'low';
+    this.qualityTier = 'blur';
     this.camera = { x: 800, y: 410, zoom: 0.72 };
     this.resize();
 
@@ -157,8 +157,8 @@ class NativeWebGLRenderer {
     return this.loadImageTexture(url, 'background');
   }
 
-  setQuality(tier = 'low') {
-    const nextTier = ['low', 'medium', 'high'].includes(tier) ? tier : 'low';
+  setQuality(tier = 'blur') {
+    const nextTier = ['blur', 'low', 'medium', 'high'].includes(tier) ? tier : 'blur';
     if (this.qualityTier === nextTier) return;
     this.qualityTier = nextTier;
     this.configureTexture(this.spriteTexture);
@@ -167,19 +167,27 @@ class NativeWebGLRenderer {
   }
 
   qualitySegments(base = 24) {
-    const multiplier = this.qualityTier === 'low' ? 0.58 : this.qualityTier === 'medium' ? 0.78 : 1;
+    const multiplier = this.qualityTier === 'blur' ? 0.44 : this.qualityTier === 'low' ? 0.58 : this.qualityTier === 'medium' ? 0.78 : 1;
     return Math.max(8, Math.round(base * multiplier));
   }
 
   getDprCap() {
-    return this.qualityTier === 'low' ? 1 : this.qualityTier === 'medium' ? 1.75 : 2.4;
+    if (this.qualityTier === 'blur') return 1;
+    if (this.qualityTier === 'low') {
+      const viewportWidth = Number(window.visualViewport?.width) || window.innerWidth || 1;
+      const viewportHeight = Number(window.visualViewport?.height) || window.innerHeight || 1;
+      const mobileViewport = Math.min(viewportWidth, viewportHeight) <= 600;
+      // 手机 UI 仍走轻量资源，但画布至少保留接近 Retina 的采样密度，避免 CSS 放大后发糊。
+      return mobileViewport ? 2 : 1;
+    }
+    return this.qualityTier === 'medium' ? 1.75 : 2.4;
   }
 
   configureTexture(texture) {
     if (!texture) return;
     const gl = this.gl;
     gl.bindTexture(gl.TEXTURE_2D, texture);
-    const useMipmaps = this.qualityTier !== 'low';
+    const useMipmaps = !['blur', 'low'].includes(this.qualityTier);
     if (useMipmaps) gl.generateMipmap(gl.TEXTURE_2D);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, useMipmaps ? gl.LINEAR_MIPMAP_LINEAR : gl.LINEAR);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);

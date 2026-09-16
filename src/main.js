@@ -2,9 +2,19 @@ const { BattleSimulation, WORLD } = window.MemeWarSim;
 const { NativeWebGLRenderer } = window.MemeWarWebGL;
 
 const UNIT_TEXTURE_URL = window.MEME_WAR_TEXTURE_DATA || './assets/units-handdrawn-atlas.png';
-const BACKGROUND_TEXTURE_URL = window.MEME_WAR_BACKGROUND_DATA || './assets/battlefield-watercolor-bg.png';
-const UNIT_TEXTURE_LOW_URL = window.MEME_WAR_TEXTURE_LOW_DATA || null;
-const BACKGROUND_TEXTURE_LOW_URL = window.MEME_WAR_BACKGROUND_LOW_DATA || null;
+const BACKGROUND_TEXTURE_URL = window.MEME_WAR_BACKGROUND_DATA || './assets/battlefield-watercolor-bg-high.jpg';
+const UNIT_TEXTURE_BLUR_URL = window.MEME_WAR_TEXTURE_BLUR_DATA || './assets/units-handdrawn-atlas-blur.png';
+const BACKGROUND_TEXTURE_BLUR_URL = window.MEME_WAR_BACKGROUND_BLUR_DATA || './assets/battlefield-watercolor-bg-blur.jpg';
+const UNIT_TEXTURE_LOW_URL = './assets/units-handdrawn-atlas-low.png';
+const BACKGROUND_TEXTURE_LOW_URL = './assets/battlefield-watercolor-bg-low.jpg';
+const UNIT_TEXTURE_MEDIUM_URL = './assets/units-handdrawn-atlas-medium.png';
+const BACKGROUND_TEXTURE_MEDIUM_URL = './assets/battlefield-watercolor-bg-medium.jpg';
+const TEXTURE_STAGES = Object.freeze([
+  { tier: 'blur', unit: UNIT_TEXTURE_BLUR_URL, background: BACKGROUND_TEXTURE_BLUR_URL },
+  { tier: 'low', unit: UNIT_TEXTURE_LOW_URL, background: BACKGROUND_TEXTURE_LOW_URL },
+  { tier: 'medium', unit: UNIT_TEXTURE_MEDIUM_URL, background: BACKGROUND_TEXTURE_MEDIUM_URL },
+  { tier: 'high', unit: UNIT_TEXTURE_URL, background: BACKGROUND_TEXTURE_URL },
+]);
 const MAX_DEPLOYMENTS = 24;
 const MIN_ZOOM = 0.42;
 const MOBILE_MIN_ZOOM = 0.22;
@@ -65,9 +75,8 @@ function isConstrainedDevice() {
 function getInitialQualityTier() {
   const memoryLimited = Number.isFinite(navigator.deviceMemory) && navigator.deviceMemory <= 2;
   const { shortEdge } = getViewportMetrics();
-  if (isConstrainedDevice() || memoryLimited || shortEdge < 600) return 'low';
-  if (shortEdge < 900) return 'medium';
-  return 'medium';
+  if (isConstrainedDevice() || memoryLimited || shortEdge < 600) return 'blur';
+  return 'low';
 }
 
 function makeElement(tag, className, text = '') {
@@ -275,44 +284,41 @@ class MemeWarApp {
     const viewport = getViewportMetrics();
     const mobileViewport = viewport.shortEdge <= 600;
     const memoryLimited = Number.isFinite(navigator.deviceMemory) && navigator.deviceMemory <= 2;
-    const stayLight = constrained || mobileViewport || memoryLimited;
+    // 先用内嵌模糊档保证首帧；普通设备随后逐档换清晰，省流量/慢网或低内存设备停在安全档。
+    const stayLight = constrained || memoryLimited;
+    const idleTimeout = mobileViewport ? 1800 : 1200;
     const schedule = window.requestIdleCallback
-      ? (callback) => window.requestIdleCallback(callback, { timeout: 1200 })
-      : (callback) => window.setTimeout(callback, 90);
+      ? (callback) => window.requestIdleCallback(callback, { timeout: idleTimeout })
+      : (callback) => window.setTimeout(callback, mobileViewport ? 450 : 90);
 
-    const loadLightweightAssets = async () => {
+    const loadTextureStage = async (stage) => {
       if (!this.renderer) return;
-      if (UNIT_TEXTURE_LOW_URL) {
-        await this.renderer.loadTexture(UNIT_TEXTURE_LOW_URL).catch(() => {});
-        if (this.renderer.spriteReady) {
-          this.unitTextureUrl = UNIT_TEXTURE_LOW_URL;
-          this.applyUnitGlyphTextures();
-        }
-      }
-      if (BACKGROUND_TEXTURE_LOW_URL) await this.renderer.loadBackgroundTexture(BACKGROUND_TEXTURE_LOW_URL).catch(() => {});
-      this.render();
-    };
-
-    // 轻量资源在首帧后立即开始解码；手机停留在轻量档，避免后台再次解码整张高清图集。
-    const lightweightTask = loadLightweightAssets();
-    if (stayLight) return;
-
-    schedule(async () => {
-      await lightweightTask;
-
       const textureResults = await Promise.allSettled([
-        this.renderer.loadTexture(UNIT_TEXTURE_URL),
-        this.renderer.loadBackgroundTexture(BACKGROUND_TEXTURE_URL),
+        this.renderer.loadTexture(stage.unit),
+        this.renderer.loadBackgroundTexture(stage.background),
       ]);
       if (textureResults[0]?.status === 'fulfilled') {
-        this.unitTextureUrl = UNIT_TEXTURE_URL;
+        this.unitTextureUrl = stage.unit;
         this.applyUnitGlyphTextures();
       }
-      if (textureResults.some((result) => result.status === 'rejected')) {
-        this.showToast('部分高清素材加载失败，已保留轻量 WebGL 画面。');
+      if (textureResults.some((result) => result.status === 'fulfilled')) this.renderer.setQuality(stage.tier);
+      if (textureResults.some((result) => result.status === 'rejected') && stage.tier === 'high') {
+        this.showToast('高清素材加载失败，已保留当前可用画质。');
       }
-      this.renderer.setQuality(isConstrainedDevice() || memoryLimited ? 'low' : 'high');
       this.render();
+      return textureResults;
+    };
+
+    // 最小档在首帧后立即解码；后续档位串行加载，避免同时抢占手机网络与解码内存。
+    const blurTask = loadTextureStage(TEXTURE_STAGES[0]);
+    schedule(async () => {
+      await blurTask;
+      const finalStageIndex = stayLight ? 2 : TEXTURE_STAGES.length;
+      for (const stage of TEXTURE_STAGES.slice(1, finalStageIndex)) {
+        await loadTextureStage(stage);
+        // 每档之间让出一帧，避免升级纹理时阻塞拖卡与战斗输入。
+        await new Promise((resolve) => window.requestAnimationFrame(resolve));
+      }
     });
   }
 
@@ -1154,7 +1160,7 @@ class MemeWarApp {
     }
     renderer.drawLine(800, WORLD.minY, 800, WORLD.maxY, 2, '#63e0cb', 0.22);
 
-    const gridStep = renderer.qualityTier === 'low' ? 160 : 80;
+    const gridStep = ['blur', 'low'].includes(renderer.qualityTier) ? 160 : 80;
     for (let x = 40; x <= WORLD.width - 40; x += gridStep) renderer.drawLine(x, WORLD.minY, x, WORLD.maxY, 1, '#91c6bb', 0.08);
     for (let y = 40; y <= WORLD.height - 40; y += gridStep) renderer.drawLine(WORLD.minX, y, WORLD.maxX, y, 1, '#91c6bb', 0.08);
     renderer.drawLine(WORLD.minX, WORLD.minY, WORLD.maxX, WORLD.minY, 3, '#a5dbd0', 0.2);
@@ -1245,7 +1251,7 @@ class MemeWarApp {
         this.renderer.drawCircle(projectile.x, projectile.y, 5, color, 12, 0.95);
       }
     }
-    const effectLimit = this.renderer.qualityTier === 'low' ? 28 : this.renderer.qualityTier === 'medium' ? 52 : 84;
+    const effectLimit = this.renderer.qualityTier === 'blur' ? 20 : this.renderer.qualityTier === 'low' ? 28 : this.renderer.qualityTier === 'medium' ? 52 : 84;
     for (const effect of this.simulation.effects.slice(-effectLimit)) this.drawEffect(effect);
   }
 
@@ -1388,7 +1394,7 @@ class MemeWarApp {
     const drawMagic = (x, y, size, rotation, alpha = fade) => {
       arc(x, y, size * 0.78, rotation - 1.8, rotation - 0.35, 3, '#a98bff', alpha * 0.75);
       arc(x, y, size * 0.58, rotation + 0.3, rotation + 1.7, 2, '#f1faee', alpha * 0.76);
-      const moteCount = renderer.qualityTier === 'low' ? 4 : 7;
+      const moteCount = renderer.qualityTier === 'blur' ? 3 : renderer.qualityTier === 'low' ? 4 : 7;
       for (let index = 0; index < moteCount; index += 1) {
         const moteAngle = rotation + index * Math.PI * 2 / moteCount + this.renderTime * 0.7;
         const moteRadius = size * (0.34 + (index % 2) * 0.25);

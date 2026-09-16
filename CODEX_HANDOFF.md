@@ -2,20 +2,31 @@
 
 - 阶段：Prototype
 - 玩家结果：在预算内买兵并部署，开战后观看敌方全员同时入场的一场自动战斗；不再有波次间隔或中途整备，清空整关后进入结算并可前往下一关，用剩余预算获得 S/D 等级。
-- 当前状态：原生 WebGL2 可玩切片已收敛为一次性全阵容自动战斗；10 关、数据驱动兵种、部署/撤回、拖拽、自动战斗、技能、镜头、暂停/倍速和结算已经接通。13 个可部署角色与敌方瓜摊老板均已接入原创手绘图集，卡面与战斗内角色保持一一对应。准备阶段支持“兵种卡拖到左半场直接部署”，已部署单位拖回兵种卡会撤销并全额退款；手机按横屏布局适配，PC 侧战场占比已扩大，窗口旋转/尺寸变化会重新适配相机。统一 UI 令控件、卡片、提示和结果面板共享圆角/焦点/表面规范；单位生成、传送、突进、冲锋、召唤、护盾、嘲讽和延迟爆发均有 WebGL 轨迹/脉冲/落点，并在画布上显示短标签。普通攻击已按最新角色形象重构：蔡徐坤投篮球并每四拍 AOE 后撤，华强霰弹远程，嘎子狙击远程，大运/牛来冲撞，奶蛙奶泡，黄色袋鼠外卖，瓜摊老板投西瓜；耄耋召唤与 W 嘴、妙脆角猫瞬移、狗叫嘲讽、刀盾反伤、企鹅控制均为独立技能链。统一动作状态覆盖近战挥击、远程起手/弹道、技能施放、命中撞击、受击抖动闪白、延迟血条、伤害/治疗数字、击退方向线和死亡收束。角色本体已移除永久圆环、圆形底座和朝向线；仅保留命中点短线和状态小标记，朝向只用于有侧向道具角色的水平翻转。兵种卡额外显示技能摘要，头顶名字和技能标签改为低遮挡半透明样式。`index.html` 仍是自包含静态发布入口：`scripts/build-static.mjs` 将数据、样式、运行代码和轻量图集/压缩底图内嵌，高清资源仅在非手机设备空闲时补载，可直接双击或部署到 GitHub Pages。
-- 重要文件：`index.html`、`package.json`、`src/main.js`、`src/sim.js`、`src/webgl.js`、`styles.css`、`data/units.json`、`data/levels.json`、`assets/units-handdrawn-atlas.png`、`assets/units-handdrawn-atlas-low.png`、`assets/battlefield-watercolor-bg-low.jpg`、`assets/units-handdrawn-atlas-userrefs-v4.png`、`assets/ASSET_NOTES.md`、`scripts/check-data.mjs`、`scripts/check-balance.mjs`、`scripts/build-static.mjs`、`scripts/check-static-runtime.mjs`、`scripts/server.mjs`、`scripts/launch.mjs`、`PLAY_GAME.cmd`。
+- 当前状态：原生 WebGL2 可玩切片已收敛为一次性全阵容自动战斗；10 关、数据驱动兵种、部署/撤回、拖拽、自动战斗、技能、镜头、暂停/倍速和结算已经接通。13 个可部署角色与敌方瓜摊老板均已接入原创手绘图集，卡面与战斗内角色保持一一对应。准备阶段支持“兵种卡拖到左半场直接部署”，已部署单位拖回兵种卡会撤销并全额退款；手机按横屏布局适配，PC 侧战场占比已扩大，窗口旋转/尺寸变化会重新适配相机。统一 UI 令控件、卡片、提示和结果面板共享圆角/焦点/表面规范；单位生成、传送、突进、冲锋、召唤、护盾、嘲讽和延迟爆发均有 WebGL 轨迹/脉冲/落点，并在画布上显示短标签。普通攻击已按最新角色形象重构：蔡徐坤投篮球并每四拍 AOE 后撤，华强霰弹远程，嘎子狙击远程，大运/牛来冲撞，奶蛙奶泡，黄色袋鼠外卖，瓜摊老板投西瓜；耄耋召唤与 W 嘴、妙脆角猫瞬移、狗叫嘲讽、刀盾反伤、企鹅控制均为独立技能链。统一动作状态覆盖近战挥击、远程起手/弹道、技能施放、命中撞击、受击抖动闪白、延迟血条、伤害/治疗数字、击退方向线和死亡收束。角色本体已移除永久圆环、圆形底座和朝向线；仅保留命中点短线和状态小标记，朝向只用于有侧向道具角色的水平翻转。兵种卡额外显示技能摘要，头顶名字和技能标签改为低遮挡半透明样式。`index.html` 仍是自包含静态发布入口：`scripts/build-static.mjs` 将数据、样式、运行代码和 50% 首帧资源内嵌，运行时按四档画质逐级替换，普通设备最终补载高清资源，受限设备停在安全档，可直接双击或部署到 GitHub Pages。
+- 重要文件：`index.html`、`package.json`、`src/main.js`、`src/sim.js`、`src/webgl.js`、`styles.css`、`data/units.json`、`data/levels.json`、`assets/units-handdrawn-atlas-blur.png`、`assets/units-handdrawn-atlas-low.png`、`assets/units-handdrawn-atlas-medium.png`、`assets/units-handdrawn-atlas.png`、`assets/battlefield-watercolor-bg-blur.jpg`、`assets/battlefield-watercolor-bg-low.jpg`、`assets/battlefield-watercolor-bg-medium.jpg`、`assets/battlefield-watercolor-bg-high.jpg`、`assets/ASSET_NOTES.md`、`scripts/check-data.mjs`、`scripts/check-balance.mjs`、`scripts/build-static.mjs`、`scripts/check-static-runtime.mjs`、`scripts/server.mjs`、`scripts/launch.mjs`、`PLAY_GAME.cmd`。
 - 验证：`npm run build` 成功；`npm run check` 通过，并确认 `index.html` 无外部脚本/样式表、包含内嵌数据与图集，以及“可选纹理不得阻塞启动”“统一攻击/命中反馈链”“角色本体不得恢复永久圆环”“篮球投射物存在”“单场全阵容”和“渐进式低画质启动”的回归检查；`check-balance.mjs` 固定种子烟测确认 10 关均存在预算内、完整清场的基准编队，通关约 16.1–38.0 秒；单文件构建后本地 HTTP 静态入口真实浏览器已进入“准备部署”界面且控制台无错误；浏览器 AX 树确认 13 张兵种卡均有技能摘要；真实浏览器战斗捕获到蔡徐坤篮球、技能播报、`-15/-21/-22` 伤害数字和无本体底圈角色，实测 DOM 仍为半透明名字背景 `rgba(5, 15, 24, 0.42)`；`tab.dev.logs({levels:['error','warn']})` 返回空数组；远程单位贴近时会主动后撤，召唤物保持安全距离；PC 与手机视口均实测卡栏横向拖动及卡片拖入部署；`PLAY_GAME.cmd` 已实测启动服务器并打开页面；浏览器截图确认卡面、己方单位、召唤物和敌方瓜摊老板均来自手绘图集。
-- 当前风险：关卡与各单位数值仍是原型平衡，烟测只证明基准编队可行，不代表所有阵容都公平；完整 roguelike 商店、遗物池、持久进度和大规模敌群尚未实现；动作目前是“单帧图集 + 程序化 WebGL 动作/特效”，还不是逐帧骨骼动画；WebGL2 不可用时只有提示，没有 Canvas 2D 降级；本轮已验证浏览器尺寸和触控事件，不等于真实手机 GPU、触控手感、陀螺仪/安全区全覆盖；手机 low 画质使用 50% 派生图集，仍需在真实设备复测清晰度/帧率；本轮自动化工具禁止访问本机 `file://`，所以未取得“双击文件”的真实浏览器证据，需用户在本机手动双击 `index.html` 最终确认；GitHub Pages 尚未替用户仓库实际发布。
+- 当前风险：关卡与各单位数值仍是原型平衡，烟测只证明基准编队可行，不代表所有阵容都公平；完整 roguelike 商店、遗物池、持久进度和大规模敌群尚未实现；动作目前是“单帧图集 + 程序化 WebGL 动作/特效”，还不是逐帧骨骼动画；WebGL2 不可用时只有提示，没有 Canvas 2D 降级；本轮已验证浏览器尺寸和触控事件，不等于真实手机 GPU、触控手感、陀螺仪/安全区全覆盖；当前按 50%/75%/80%/100% 四档渐进加载，普通手机最终到高清，受限设备停在 75% 安全档，真实设备仍需复测清晰度/帧率；本轮自动化工具禁止访问本机 `file://`，所以未取得“双击文件”的真实浏览器证据，需用户在本机手动双击 `index.html` 最终确认；GitHub Pages 尚未替用户仓库实际发布。
 - 下一项最安全任务：用户在目标手机横屏和实际 PC 浏览器各打开一次 `index.html`，确认受击数字密度、程序化攻击动作和特效帧率；若需要继续迭代，下一步优先拆分角色逐帧动作图集，再收集真实试玩后的关卡/兵种数值反馈，不改动已验证的静态构建链。
 
-## 本轮纯战场 HUD 与移动首包加速
+## 本轮四档画质、首帧加速与历史素材清理
+
+- `src/main.js` 现在按 `blur → low → medium → high` 串行载入角色图集和战场底图：50% 模糊档内嵌进静态入口，随后换 75% 手机安全档、80% 正常档和 100% 高清档；每档只在上一档完成后继续，避免手机同时下载/解码多张大图。
+- `src/webgl.js` 增加 `blur` 画质档，并为四档分别控制 mipmap、DPR、网格/特效预算；普通设备空闲后最终到高清，省流量、慢网或低内存设备只升到 75% 安全档。
+- 新增 `assets/units-handdrawn-atlas-blur.png`、`assets/units-handdrawn-atlas-medium.png`、`assets/battlefield-watercolor-bg-blur.jpg`、`assets/battlefield-watercolor-bg-medium.jpg` 和高质量 JPEG 高清底图 `assets/battlefield-watercolor-bg-high.jpg`。旧的 `units-handdrawn-atlas-userrefs-v2/v3/v4.png` 仅为历史副本，未被运行时代码或构建脚本引用，已从项目移出到临时隔离目录（可恢复）；当前高清角色图集与四档运行资源均保留。
+- 未使用的图片不会被浏览器主动读取，通常不会拖慢运行时；但会增加项目目录、部署上传/扫描和备份体积。真正影响首屏的是内嵌数据，真正影响后续网络的是运行时请求的各档资源，所以这轮同时减小了首包并保留可升级清晰度。
+- 验证：`npm run build`、`npm run check` 通过；`rg` 确认历史副本无代码/构建引用，构建入口只内嵌 50% 首帧资源；浏览器资源清单实际看到 75% → 80% → 100% 的角色/底图后续资源，50% 档由内嵌 data URL 提供；控制台 error/warn 为空，最新页面已标记为可交付。
+
+## 本轮纯战场 HUD、移动首包加速与画布清晰度回归
 
 - 右侧 `#sidePanel` 从可视布局移除，准备态只保留左侧纵向、可上下滑动的部署栏和右侧完整战场；战斗态部署栏照旧隐藏，画布扩展到整宽。标题“梗战争模拟器”右侧保留 1×/2×/4× 速度按钮，关卡选择与开始/重置按钮仍在顶栏。
 - 手机 `≤900px` 将 `.budget-stat` 压缩成顶栏紧凑预算徽标，仍持续显示剩余金额，不占用右侧战场；844×390 横屏实测准备态战场为 732×334、战斗态为 844×334，390×844 竖屏实测逻辑 app 为 844×390，自动旋转后仍没有横屏提示或右侧面板。
-- 首包根因是旧版 `index.html` 将高清角色图集和水彩底图完整内嵌，静态入口约 6.2MB。新增 `assets/units-handdrawn-atlas-low.png`（606745 bytes）和 `assets/battlefield-watercolor-bg-low.jpg`（84139 bytes），构建入口只内嵌轻量资源；当前 `index.html` 约 1.13MB。手机首帧后立即解码轻量资源，并停留在 low DPR/特效档，不再后台请求高清图；桌面/大屏才在空闲时补高清资源。
+- 首包根因是旧版 `index.html` 将高清角色图集和水彩底图完整内嵌，静态入口约 6.2MB。新增 `assets/units-handdrawn-atlas-low.png`（1319643 bytes，946×935）和 `assets/battlefield-watercolor-bg-low.jpg`（175685 bytes，1254×706），构建入口只内嵌轻量资源；当前 `index.html` 约 2.20MB，仍显著小于旧入口。手机首帧后立即解码轻量资源；普通设备空闲后补载高清图，省流量/慢网/低内存设备保持 low。
+- 糊图根因是移动端 low 画质原先把 WebGL backing canvas 固定为 1 倍 DPR，CSS 放大后采样密度低于同页文字/UI；同时旧逻辑让所有手机永久停留在 75% 轻量纹理。`src/webgl.js` 现在在手机视口让画布 DPR 跟随实际 `devicePixelRatio`，最高 2 倍；`src/main.js` 先给轻量首帧，再在普通手机空闲时换高清图，避免战场被低分辨率放大。增加 DPR 不会改变逻辑坐标，只提高画布采样密度。
+- 结算页根因是自动横屏时结算卡的内容高度超过手机短边，CSS 旋转后“再来一次/下一关”被移到物理屏幕外。`styles.css` 在移动端压缩结算卡、统计/评级间距，并让 `.result-actions .button` 等宽且至少 44px；按钮仍由原有事件处理，不改关卡状态逻辑。
 - `scripts/server.mjs` 对 `assets/` 使用长期 immutable 缓存，减少手机重复打开时的等待；`scripts/check-static-runtime.mjs` 增加轻量资源、标题栏速度控件和右侧 UI 移除回归检查。
-- 本轮验证：`npm run build`、`npm run check` 通过；浏览器 1440 级桌面、844×390 横屏、390×844 自动横屏均无溢出；AX 树不再出现右侧任务面板，手机预算节点保持可见；横屏拖卡部署与开战后整宽画布均成功；`tab.dev.logs({levels:['error','warn']})` 已确认为空。
-- 当前风险：轻量图集为原图 50% 派生版本，手机清晰度和低端 GPU 帧率仍需实体 Android/iOS 复测；真实弱网、刘海安全区、系统旋转动画未覆盖。 
+- 本轮验证：`npm run build`、`npm run check` 通过；浏览器 1440 级桌面、844×390 横屏、390×844 自动横屏均无溢出；AX 树不再出现右侧任务面板，手机预算节点保持可见；横屏拖卡部署与开战后整宽画布均成功；手机页面资源观测到 `units-handdrawn-atlas.png` 与 `battlefield-watercolor-bg.png` 已在轻量首帧后补载；`tab.dev.logs({levels:['error','warn']})` 已确认为空。
+- 结算回归：390×844 上“下一关”已从第 01 关进入第 02 关，“再来一次”回到第 02 关准备态；两个按钮的命中点都在物理视口内，尺寸保持 44px 触控高度。
+- 当前风险：轻量图集为原图 75% 派生版本，普通手机会在后台渐进换高清，真实 Android/iOS 的 DPR>1 GPU 负载与帧率仍需实体设备复测；自动化浏览器当前使用 DPR=1 配置，因此只能验证尺寸/逻辑和无报错，不能替代真实 Retina 采样验证；真实弱网、刘海安全区、系统旋转动画未覆盖。
 
 ## 本轮自动逻辑横屏、左右战术栏与凑企鹅降价
 

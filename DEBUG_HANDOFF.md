@@ -1,5 +1,12 @@
 # 调试交接记录
 
+## 本轮四档纹理加载与历史素材清理
+
+- 根因：旧项目目录同时保留多份 `userrefs-v2/v3/v4` 参考副本；它们未被浏览器请求，但会增加项目扫描、部署上传和备份体积。运行时真正需要的是角色高清图集、战场高清底图和移动首帧资源。
+- 修复：以当前高清角色图集/底图为源生成 50% `blur`、75% `low`、80% `medium`、100% `high` 四档；`scripts/build-static.mjs` 只内嵌 50% 档，`src/main.js` 在空闲时串行替换后续档位，`src/webgl.js` 同步降低/恢复 DPR、mipmap 和特效预算。普通设备最终到高清，省流量/慢网/低内存设备停在 75% 安全档。
+- 优化：背景高清档改为高质量 JPEG `assets/battlefield-watercolor-bg-high.jpg`，不再让无透明通道的 PNG 承担 2.8MB 高清后续下载；旧 `units-handdrawn-atlas-userrefs-v2/v3/v4.png` 已确认无运行时/构建引用后移出项目到临时隔离目录。
+- 验证结果：`npm run build`、`npm run check` 通过；`index.html` 约 1.15MB，入口包含两个 50% 首帧内嵌变量且无外部脚本/样式表；浏览器资源清单实际看到 75% → 80% → 100% 的角色/底图后续资源，50% 档由内嵌 data URL 提供；`tab.dev.logs({levels:['error','warn']})` 返回 `[]`。
+
 ## 本轮错误现象
 
 - 用户直接双击 `index.html` 后，页面一直停留在“正在加载战场数据…”。
@@ -126,13 +133,17 @@
 - 验证：1440×900 和 844×390 截图显示左卡栏/中央水彩战场/右战况栏；列表内容高度 1147px、视口高度 258px，滚动回归成功；拖第一张卡部署成功，战斗态部署栏隐藏、中央 backing 为 788×334；390×844 无提示且逻辑尺寸正确；`npm run build`、`npm run check`、浏览器 error/warn 均通过。
 - 剩余风险：需真实手机复测页面级旋转的文本朝向、刘海安全区、DPR 和 GPU 帧率；不应把浏览器视口仿真当成实体设备认证。
 
-## 本轮纯战场 HUD、预算可见性与移动首包加速
+## 本轮纯战场 HUD、预算可见性、移动首包加速与画布清晰度回归
 
 - 现象：右侧说明/战况栏挤占战场；移除该栏后如果沿用原有手机隐藏规则，预算数字也会从顶栏消失；旧版静态入口还会把高清图集和底图完整内嵌，手机首屏等待时间过长。
-- 修复：`styles.css` 将 `#sidePanel` 设为 `display:none !important` 并改为左侧部署栏 + 全宽战场两列；`.top-speed-controls` 紧贴标题栏；手机预算改成紧凑的“预算 + 剩余金额”徽标，未再隐藏。`src/main.js` 让手机只启动轻量资源并停留在 low 画质，桌面设备空闲时才补载高清资源。
-- 资源：`assets/units-handdrawn-atlas-low.png`（606745 bytes）和 `assets/battlefield-watercolor-bg-low.jpg`（84139 bytes）由最终手绘资源派生；`scripts/build-static.mjs` 只把轻量资源内嵌到入口，当前 `index.html` 约 1.13MB；`scripts/server.mjs` 对 `assets/` 开启长期缓存。
+- 修复：`styles.css` 将 `#sidePanel` 设为 `display:none !important` 并改为左侧部署栏 + 全宽战场两列；`.top-speed-controls` 紧贴标题栏；手机预算改成紧凑的“预算 + 剩余金额”徽标，未再隐藏。`src/main.js` 让手机先启动轻量资源，普通设备空闲时补载高清资源，省流量/慢网/低内存设备才停留在 low 画质。
+- 资源：`assets/units-handdrawn-atlas-low.png`（1319643 bytes，946×935）和 `assets/battlefield-watercolor-bg-low.jpg`（175685 bytes，1254×706）由最终手绘资源派生；`scripts/build-static.mjs` 只把轻量资源内嵌到入口，当前 `index.html` 约 2.20MB；`scripts/server.mjs` 对 `assets/` 开启长期缓存。
 - 回归证据：844×390 横屏准备态 `battlefieldShell=732×334`、战斗态 `844×334`，手机预算 `display:flex` 且 AX 树可读“预算”；390×844 逻辑 app 为 `844×390`，右侧面板为 `display:none`；横屏拖卡部署成功；`npm run build` 与 `npm run check` 通过。
-- 风险/下一步：低清角色图集是 50% 派生版本，需真实 Android/iOS 在弱网、DPR>1 和低端 GPU 上复测清晰度与帧率；如果仍有慢机首屏问题，下一步优先引入 Service Worker 缓存或按设备分包，不要恢复高清首包阻塞。
+- 根因与修复：手机 UI 使用系统高密度栅格，而 WebGL low 画布原先将 backing canvas 固定为 1 倍 DPR，战场纹理因此被 CSS 放大；同时所有手机都被 `mobileViewport` 提前 return，永远没有换回高清图。`src/webgl.js` 的 `getDprCap()` 现在对手机视口返回 2 倍上限，`resize()` 按实际 DPR 创建 backing canvas；`src/main.js` 先载 75% 轻量纹理，再让普通手机空闲补载高清纹理。
+- 回归证据：改动后 844×390 横屏截图可正常加载新的 75% 水彩底图；页面资源观测随后看到 `units-handdrawn-atlas.png` 与 `battlefield-watercolor-bg.png`，证明渐进升级路径已执行；AX/截图无布局异常，`tab.dev.logs({levels:['error','warn']})` 为空。自动化视口为 DPR=1，故运行时尺寸保持 1 倍是预期，真实 DPR=2/3 设备将分别使用 2/2 倍上限。
+- 结算页同轮根因：自动横屏后 `.result-card` 内容高度约 450px，超过 390px 手机短边，旋转后的结算按钮落在屏幕左侧外部；移动 CSS 将卡片高度压到短边内，并把两个 action button 设为可伸展的 44px 触控目标。
+- 结算回归证据：390×844 实测两个按钮命中点均落在视口内；点击“下一关”进入第 02 关，点击“再来一次”回到第 02 关准备态，AX 树同时可见两个按钮。
+- 风险/下一步：75% 轻量图集是首帧 fallback，普通设备会换高清但仍需真实 Android/iOS 在弱网、DPR>1 和低端 GPU 上复测清晰度与帧率；如果仍有慢机首屏问题，下一步优先引入 Service Worker 缓存或按设备分包，不要恢复高清首包阻塞。
 
 ## 本轮长边横屏与全战场取景回归
 
