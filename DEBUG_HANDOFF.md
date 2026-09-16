@@ -126,6 +126,14 @@
 - 验证：1440×900 和 844×390 截图显示左卡栏/中央水彩战场/右战况栏；列表内容高度 1147px、视口高度 258px，滚动回归成功；拖第一张卡部署成功，战斗态部署栏隐藏、中央 backing 为 788×334；390×844 无提示且逻辑尺寸正确；`npm run build`、`npm run check`、浏览器 error/warn 均通过。
 - 剩余风险：需真实手机复测页面级旋转的文本朝向、刘海安全区、DPR 和 GPU 帧率；不应把浏览器视口仿真当成实体设备认证。
 
+## 本轮纯战场 HUD、预算可见性与移动首包加速
+
+- 现象：右侧说明/战况栏挤占战场；移除该栏后如果沿用原有手机隐藏规则，预算数字也会从顶栏消失；旧版静态入口还会把高清图集和底图完整内嵌，手机首屏等待时间过长。
+- 修复：`styles.css` 将 `#sidePanel` 设为 `display:none !important` 并改为左侧部署栏 + 全宽战场两列；`.top-speed-controls` 紧贴标题栏；手机预算改成紧凑的“预算 + 剩余金额”徽标，未再隐藏。`src/main.js` 让手机只启动轻量资源并停留在 low 画质，桌面设备空闲时才补载高清资源。
+- 资源：`assets/units-handdrawn-atlas-low.png`（606745 bytes）和 `assets/battlefield-watercolor-bg-low.jpg`（84139 bytes）由最终手绘资源派生；`scripts/build-static.mjs` 只把轻量资源内嵌到入口，当前 `index.html` 约 1.13MB；`scripts/server.mjs` 对 `assets/` 开启长期缓存。
+- 回归证据：844×390 横屏准备态 `battlefieldShell=732×334`、战斗态 `844×334`，手机预算 `display:flex` 且 AX 树可读“预算”；390×844 逻辑 app 为 `844×390`，右侧面板为 `display:none`；横屏拖卡部署成功；`npm run build` 与 `npm run check` 通过。
+- 风险/下一步：低清角色图集是 50% 派生版本，需真实 Android/iOS 在弱网、DPR>1 和低端 GPU 上复测清晰度与帧率；如果仍有慢机首屏问题，下一步优先引入 Service Worker 缓存或按设备分包，不要恢复高清首包阻塞。
+
 ## 本轮长边横屏与全战场取景回归
 
 - 现象：先前横屏布局把战场固定在右侧说明栏左边，844×390 只有 608px 宽；战斗隐藏部署栏但仍保留底部网格行，造成可视区域浪费和相机/画布尺寸不同步。

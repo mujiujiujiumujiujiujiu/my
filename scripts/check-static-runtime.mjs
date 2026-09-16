@@ -31,6 +31,9 @@ if (!mainSource.includes('larger world Y') || !mainSource.includes('sort((first,
 if (!mainSource.includes('scheduleProgressiveAssets') || !webglSource.includes('qualityTier') || !webglSource.includes('qualitySegments')) {
   throw new Error('渐进画质回归检查失败');
 }
+if (!mainSource.includes('mobileViewport') || !mainSource.includes('stayLight')) {
+  throw new Error('移动端必须停留在轻量资源档，避免后台解码高清素材');
+}
 if (!mainSource.includes('getViewportMetrics') || !mainSource.includes('isAutoLandscape') || !mainSource.includes('ResizeObserver')) {
   throw new Error('移动端长边方向与布局尺寸观察回归检查失败');
 }
@@ -70,11 +73,11 @@ if (/<script\s+src=/i.test(indexHtml)) {
 if (/<link\s+rel=["']stylesheet["']/i.test(indexHtml)) {
   throw new Error('index.html: 直接打开入口不能依赖外部样式表');
 }
-if (!indexHtml.includes('window.MEME_WAR_TEXTURE_DATA')) {
-  throw new Error('index.html: 缺少静态内嵌图集');
+if (!indexHtml.includes('window.MEME_WAR_TEXTURE_LOW_DATA')) {
+  throw new Error('index.html: 缺少静态内嵌轻量图集');
 }
-if (!indexHtml.includes('window.MEME_WAR_BACKGROUND_DATA')) {
-  throw new Error('index.html: 缺少静态内嵌战场底图');
+if (!indexHtml.includes('window.MEME_WAR_BACKGROUND_LOW_DATA')) {
+  throw new Error('index.html: 缺少静态内嵌轻量战场底图');
 }
 if (indexHtml.includes('orientationNotice') || indexHtml.includes('请横屏使用') || indexHtml.includes('is-phone-portrait')) {
   throw new Error('index.html: 入口不应依赖横屏提醒，必须自动逻辑横屏渲染');
@@ -82,5 +85,14 @@ if (indexHtml.includes('orientationNotice') || indexHtml.includes('请横屏使�
 if (!indexHtml.includes('上下滑动浏览')) {
   throw new Error('index.html: 缺少左侧纵向部署栏文案');
 }
+if (!indexHtml.includes('top-speed-controls') || !stylesSource.includes('.top-speed-controls')) {
+  throw new Error('速度控制必须位于标题栏右侧');
+}
+if (!stylesSource.includes('#sidePanel { display: none !important; }')) {
+  throw new Error('右侧任务 UI 必须从可视布局移除');
+}
+if (!stylesSource.includes('#topbar .budget-stat {\n    display: flex !important;')) {
+  throw new Error('手机顶栏必须保留紧凑的剩余预算');
+}
 
-console.log('static runtime guard ok: self-contained one-roster battle, automatic landscape portrait rendering and high-DPR full-board mobile layout are wired');
+console.log('static runtime guard ok: full-board HUD, automatic landscape rendering, mobile light assets and adaptive texture quality are wired');

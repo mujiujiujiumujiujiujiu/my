@@ -272,11 +272,15 @@ class MemeWarApp {
   scheduleProgressiveAssets() {
     const connection = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
     const constrained = Boolean(connection?.saveData) || ['slow-2g', '2g'].includes(connection?.effectiveType);
+    const viewport = getViewportMetrics();
+    const mobileViewport = viewport.shortEdge <= 600;
+    const memoryLimited = Number.isFinite(navigator.deviceMemory) && navigator.deviceMemory <= 2;
+    const stayLight = constrained || mobileViewport || memoryLimited;
     const schedule = window.requestIdleCallback
       ? (callback) => window.requestIdleCallback(callback, { timeout: 1200 })
       : (callback) => window.setTimeout(callback, 90);
 
-    schedule(async () => {
+    const loadLightweightAssets = async () => {
       if (!this.renderer) return;
       if (UNIT_TEXTURE_LOW_URL) {
         await this.renderer.loadTexture(UNIT_TEXTURE_LOW_URL).catch(() => {});
@@ -287,8 +291,15 @@ class MemeWarApp {
       }
       if (BACKGROUND_TEXTURE_LOW_URL) await this.renderer.loadBackgroundTexture(BACKGROUND_TEXTURE_LOW_URL).catch(() => {});
       this.render();
+    };
 
-      if (constrained) return;
+    // 轻量资源在首帧后立即开始解码；手机停留在轻量档，避免后台再次解码整张高清图集。
+    const lightweightTask = loadLightweightAssets();
+    if (stayLight) return;
+
+    schedule(async () => {
+      await lightweightTask;
+
       const textureResults = await Promise.allSettled([
         this.renderer.loadTexture(UNIT_TEXTURE_URL),
         this.renderer.loadBackgroundTexture(BACKGROUND_TEXTURE_URL),
@@ -300,7 +311,7 @@ class MemeWarApp {
       if (textureResults.some((result) => result.status === 'rejected')) {
         this.showToast('部分高清素材加载失败，已保留轻量 WebGL 画面。');
       }
-      this.renderer.setQuality(isConstrainedDevice() || (Number.isFinite(navigator.deviceMemory) && navigator.deviceMemory <= 2) ? 'low' : 'high');
+      this.renderer.setQuality(isConstrainedDevice() || memoryLimited ? 'low' : 'high');
       this.render();
     });
   }

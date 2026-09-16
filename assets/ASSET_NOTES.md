@@ -4,6 +4,8 @@
 
 `battlefield-watercolor-bg.png` 是与角色图集同一套笔触的原创战场底图：左侧青绿色部署区、中间灰蓝缓冲带、右侧砖红敌方区域，运行时由原生 WebGL2 作为底层纹理绘制。
 
+`units-handdrawn-atlas-low.png` 与 `battlefield-watercolor-bg-low.jpg` 是面向手机首屏的轻量派生资源：角色图集按 50% 尺寸缩小，底图按 50% 尺寸缩小后以 JPEG 压缩。它们只承担首屏和移动端画质档，桌面大屏仍可在空闲时换回高清资源。
+
 ## 图集规格
 
 - 4 × 4 等分透明图集。

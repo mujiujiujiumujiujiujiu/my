@@ -720,3 +720,93 @@ button:focus-visible, select:focus-visible { outline: 2px solid var(--teal); out
 #app.is-auto-landscape #sidePanel .speed-buttons { gap: 4px; }
 #app.is-auto-landscape #sidePanel .speed-button { min-height: 36px; padding: 5px 2px; font-size: 10px; }
 #app.is-auto-landscape #sidePanel .control-note { font-size: 8px; }
+
+/* 纯战场 HUD：任务说明不占用视口，速度控制紧贴标题栏。 */
+.top-speed-controls {
+  display: flex; align-items: center; gap: 4px; flex: 0 0 auto;
+}
+.top-speed-readout {
+  min-width: 28px; color: var(--gold); text-align: center;
+  font: 900 12px/1 ui-monospace, SFMono-Regular, Consolas, monospace;
+}
+.top-speed-controls .speed-button {
+  min-width: 40px; min-height: 40px; padding: 6px 8px;
+}
+
+/* 右侧任务栏保留 DOM 数据绑定，但不再参与任何可视布局。 */
+#sidePanel { display: none !important; }
+#app {
+  --unit-rail-width: 230px;
+  grid-template-columns: var(--unit-rail-width) minmax(0, 1fr);
+  grid-template-rows: 64px minmax(0, 1fr);
+}
+#topbar { grid-column: 1 / -1; grid-row: 1; }
+#playArea { grid-column: 2; grid-row: 2; min-width: 0; min-height: 0; }
+#unitDock {
+  grid-column: 1; grid-row: 2; min-width: 0; min-height: 0;
+  height: auto; border-top: 0; border-right: 1px solid var(--line);
+}
+#battlefieldShell { inset: 0; }
+#app.phase-battle, #app.phase-result {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: 64px minmax(0, 1fr);
+}
+#app.phase-battle #playArea, #app.phase-result #playArea { grid-column: 1; grid-row: 2; }
+#app.is-panel-collapsed:not(.phase-battle):not(.phase-result) {
+  grid-template-columns: var(--unit-rail-width) minmax(0, 1fr);
+}
+#app.is-panel-collapsed.phase-battle, #app.is-panel-collapsed.phase-result {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+@media (max-width: 900px) {
+  #topbar .budget-stat {
+    display: flex !important; flex: 0 0 auto; min-width: auto;
+    flex-direction: row; align-items: baseline; gap: 3px; white-space: nowrap;
+  }
+  #topbar .budget-stat .stat-kicker { font-size: 8px; letter-spacing: 0; }
+  #topbar .budget-stat strong { font-size: 14px; }
+  #topbar .budget-stat small { font-size: 8px; }
+  #topbar .top-speed-controls { gap: 2px; }
+  #topbar .top-speed-readout { display: none; }
+  #topbar .top-speed-controls .speed-button {
+    min-width: 38px; min-height: 44px; padding: 6px; font-size: 10px;
+  }
+}
+
+/* 实际横屏手机：左侧保留可上下滑动的部署栏，右侧全部还给战场。 */
+@media (max-width: 900px) and (orientation: landscape) {
+  #app {
+    --unit-rail-width: 112px;
+    grid-template-columns: var(--unit-rail-width) minmax(0, 1fr);
+    grid-template-rows: 56px minmax(0, 1fr);
+  }
+  #topbar { grid-column: 1 / -1; grid-row: 1; }
+  #playArea { grid-column: 2; grid-row: 2; }
+  #unitDock { grid-column: 1; grid-row: 2; height: auto; }
+  #unitList {
+    flex: 1 1 auto; width: 100%; height: auto; min-height: 0;
+    overflow-x: hidden; overflow-y: auto; touch-action: pan-y;
+  }
+  #app.phase-battle, #app.phase-result {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: 56px minmax(0, 1fr);
+  }
+  #app.phase-battle #playArea, #app.phase-result #playArea { grid-column: 1; grid-row: 2; }
+}
+
+/* 竖屏手机由脚本旋转成逻辑横屏，仍使用同一套纯战场布局。 */
+#app.is-auto-landscape {
+  --unit-rail-width: 112px;
+  grid-template-columns: var(--unit-rail-width) minmax(0, 1fr);
+  grid-template-rows: 56px minmax(0, 1fr);
+}
+#app.is-auto-landscape #unitDock { grid-column: 1; grid-row: 2; height: auto; }
+#app.is-auto-landscape #playArea { grid-column: 2; grid-row: 2; }
+#app.is-auto-landscape .budget-stat { display: flex !important; }
+#app.is-auto-landscape.phase-battle, #app.is-auto-landscape.phase-result {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: 56px minmax(0, 1fr);
+}
+#app.is-auto-landscape.phase-battle #playArea,
+#app.is-auto-landscape.phase-result #playArea { grid-column: 1; grid-row: 2; }

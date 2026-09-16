@@ -12,6 +12,9 @@ const types = {
   '.json': 'application/json; charset=utf-8',
   '.css': 'text/css; charset=utf-8',
   '.svg': 'image/svg+xml',
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
 };
 
 const server = createServer(async (request, response) => {
@@ -25,7 +28,11 @@ const server = createServer(async (request, response) => {
       return;
     }
     const file = await readFile(candidate);
-    response.writeHead(200, { 'Content-Type': types[extname(candidate)] || 'application/octet-stream', 'Cache-Control': 'no-store' });
+    const isImmutableAsset = safeRelative.startsWith(`assets${process.platform === 'win32' ? '\\' : '/'}`);
+    response.writeHead(200, {
+      'Content-Type': types[extname(candidate)] || 'application/octet-stream',
+      'Cache-Control': isImmutableAsset ? 'public, max-age=31536000, immutable' : 'no-store',
+    });
     response.end(file);
   } catch {
     response.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
