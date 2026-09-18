@@ -3574,8 +3574,8 @@ class NativeWebGLRenderer {
     const nextTier = ['blur', 'low', 'medium', 'high'].includes(tier) ? tier : 'blur';
     if (this.qualityTier === nextTier) return;
     this.qualityTier = nextTier;
-    this.configureTexture(this.spriteTexture);
-    this.configureTexture(this.backgroundTexture);
+    this.configureTexture(this.spriteTexture, 'sprite');
+    this.configureTexture(this.backgroundTexture, 'background');
     this.resize();
   }
 
@@ -3596,11 +3596,13 @@ class NativeWebGLRenderer {
     return this.qualityTier === 'medium' ? 1.75 : 2.4;
   }
 
-  configureTexture(texture) {
+  configureTexture(texture, target = 'sprite') {
     if (!texture) return;
     const gl = this.gl;
     gl.bindTexture(gl.TEXTURE_2D, texture);
-    const useMipmaps = !['blur', 'low'].includes(this.qualityTier);
+    // 战场底图经常以 0.35–0.60 倍缩小到手机视口；若使用 mipmap，地图会被自动采样到半尺寸层，
+    // 即使已经加载高清图也会显得像低档。角色图集仍保留 mipmap，避免角色缩放时出现闪烁。
+    const useMipmaps = target !== 'background' && !['blur', 'low'].includes(this.qualityTier);
     if (useMipmaps) gl.generateMipmap(gl.TEXTURE_2D);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, useMipmaps ? gl.LINEAR_MIPMAP_LINEAR : gl.LINEAR);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
@@ -3634,7 +3636,7 @@ class NativeWebGLRenderer {
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
         gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image);
         gl.bindTexture(gl.TEXTURE_2D, null);
-        this.configureTexture(texture);
+        this.configureTexture(texture, target);
         if (target === 'background') {
           if (this.backgroundTexture) gl.deleteTexture(this.backgroundTexture);
           this.backgroundTexture = texture;
@@ -3864,7 +3866,7 @@ window.MemeWarWebGL = { NativeWebGLRenderer, hexToRgba };
 const { NativeWebGLRenderer } = window.MemeWarWebGL;
 
 const UNIT_TEXTURE_URL = window.MEME_WAR_TEXTURE_DATA || './assets/units-handdrawn-atlas.png';
-const BACKGROUND_TEXTURE_URL = window.MEME_WAR_BACKGROUND_DATA || './assets/battlefield-watercolor-bg-high.png';
+const BACKGROUND_TEXTURE_URL = window.MEME_WAR_BACKGROUND_DATA || './assets/battlefield-watercolor-bg-high.jpg';
 const UNIT_TEXTURE_BLUR_URL = window.MEME_WAR_TEXTURE_BLUR_DATA || './assets/units-handdrawn-atlas-blur.png';
 const BACKGROUND_TEXTURE_BLUR_URL = window.MEME_WAR_BACKGROUND_BLUR_DATA || './assets/battlefield-watercolor-bg-blur.jpg';
 const UNIT_TEXTURE_LOW_URL = './assets/units-handdrawn-atlas-low.png';
@@ -4308,6 +4310,7 @@ class MemeWarApp {
       this.renderer = new NativeWebGLRenderer(this.canvas);
       this.renderer.setQuality(this.initialQualityTier);
       this.fitCamera();
+      this.syncRendererDiagnostics();
     } catch (error) {
       console.error(error);
       this.elements.webglFallback.classList.remove('hidden');
@@ -4343,14 +4346,13 @@ class MemeWarApp {
     const constrained = Boolean(connection?.saveData) || ['slow-2g', '2g'].includes(connection?.effectiveType);
     const viewport = getViewportMetrics();
     const mobileViewport = viewport.shortEdge <= 600;
-    const memoryLimited = Number.isFinite(navigator.deviceMemory) && navigator.deviceMemory <= 2;
-    // 先用内嵌模糊档保证首帧；手机在首帧后尽快升级，只有省流量/慢网才永久停在 low。
-    // 低内存手机至少升到 medium，避免整个战斗区域停留在模糊档；普通手机继续升到 high。
-    const finalStageIndex = constrained
-      ? 2
-      : memoryLimited
-        ? (mobileViewport ? 3 : 2)
-        : TEXTURE_STAGES.length;
+    // 先用内嵌模糊档保证首帧；手机不再逐档下载四整套图片，而是直接切到高清地图/图集。
+    // 只有用户明确开启省流量或处于 2G/慢网时才保留中档，避免“加载很久仍然只有中档”的体验。
+    const mobileFinalStage = constrained
+      ? { tier: 'medium', unit: UNIT_TEXTURE_MEDIUM_URL, background: BACKGROUND_TEXTURE_MEDIUM_URL }
+      : TEXTURE_STAGES[TEXTURE_STAGES.length - 1];
+    const textureStages = mobileViewport ? [TEXTURE_STAGES[0], mobileFinalStage] : TEXTURE_STAGES;
+    const finalStageIndex = textureStages.length;
     const idleTimeout = mobileViewport ? 700 : 1200;
     const schedule = mobileViewport
       ? (callback) => window.setTimeout(callback, 140)
@@ -4360,27 +4362,31 @@ class MemeWarApp {
 
     const loadTextureStage = async (stage) => {
       if (!this.renderer) return;
-      const textureResults = await Promise.allSettled([
-        this.renderer.loadTexture(stage.unit),
-        this.renderer.loadBackgroundTexture(stage.background),
-      ]);
-      if (textureResults[0]?.status === 'fulfilled') {
+      const unitTask = this.renderer.loadTexture(stage.unit).then(() => {
         this.unitTextureUrl = stage.unit;
         this.applyUnitGlyphTextures();
-      }
-      if (textureResults.some((result) => result.status === 'fulfilled')) this.renderer.setQuality(stage.tier);
+        this.render();
+      });
+      const backgroundTask = this.renderer.loadBackgroundTexture(stage.background).then(() => {
+        // 地图成功后立刻提升画布 backing 分辨率；不等待较大的角色图集拖慢战场清晰化。
+        this.renderer.setQuality(stage.tier);
+        this.syncRendererDiagnostics();
+        this.render();
+      });
+      const textureResults = await Promise.allSettled([unitTask, backgroundTask]);
       if (textureResults.some((result) => result.status === 'rejected') && stage.tier === 'high') {
         this.showToast('高清素材加载失败，已保留当前可用画质。');
       }
+      this.syncRendererDiagnostics();
       this.render();
       return textureResults;
     };
 
-    // 最小档在首帧后立即解码；后续档位串行加载，避免同时抢占手机网络与解码内存。
+    // 最小档在首帧后立即解码；手机只再请求一个最终档，桌面端继续按档位串行升级。
     const blurTask = loadTextureStage(TEXTURE_STAGES[0]);
     schedule(async () => {
       await blurTask;
-      for (const stage of TEXTURE_STAGES.slice(1, finalStageIndex)) {
+      for (const stage of textureStages.slice(1, finalStageIndex)) {
         await loadTextureStage(stage);
         // 每档之间让出一帧，避免升级纹理时阻塞拖卡与战斗输入。
         await new Promise((resolve) => window.requestAnimationFrame(resolve));
@@ -4470,8 +4476,18 @@ class MemeWarApp {
   syncRendererToLayout({ preserveFocus = false } = {}) {
     if (!this.renderer) return;
     this.renderer.resize();
+    this.syncRendererDiagnostics();
     this.fitCamera({ preserveFocus });
     this.render();
+  }
+
+  syncRendererDiagnostics() {
+    if (!this.renderer || !this.canvas || !this.elements?.app) return;
+    this.elements.app.dataset.textureTier = this.renderer.qualityTier;
+    this.canvas.dataset.textureTier = this.renderer.qualityTier;
+    this.canvas.dataset.cssSize = `${Math.round(this.renderer.width)}x${Math.round(this.renderer.height)}`;
+    this.canvas.dataset.backingSize = `${this.canvas.width}x${this.canvas.height}`;
+    this.canvas.dataset.backingDpr = String(this.renderer.dpr);
   }
 
   populateLevelPicker() {
