@@ -243,7 +243,7 @@ button:focus-visible, select:focus-visible { outline: 2px solid var(--teal); out
 .unit-stats b { color: #d7e8e7; }
 .selected-mark { position: absolute; top: 6px; right: 7px; color: var(--teal); font-size: 10px; }
 
-.overlay { position: fixed; inset: 0; z-index: 10; display: grid; place-items: center; padding: 20px; background: rgba(1, 7, 13, .72); backdrop-filter: blur(12px); }
+.overlay { position: fixed; inset: 0; z-index: 10; display: grid; place-items: center; padding: 20px; overflow-y: auto; overscroll-behavior: contain; background: rgba(1, 7, 13, .72); backdrop-filter: blur(12px); }
 .result-card { width: min(480px, 100%); padding: 34px 36px 30px; border: 1px solid rgba(157, 211, 203, .3); border-radius: var(--radius-panel); background: linear-gradient(145deg, rgba(16, 48, 57, .96), rgba(9, 21, 34, .98) 74%), radial-gradient(circle at 92% 8%, rgba(244, 198, 106, .14), transparent 26%); box-shadow: var(--shadow); }
 .result-stamp { display: inline-flex; align-items: center; height: 23px; margin-bottom: 15px; padding: 0 9px; border: 1px solid currentColor; border-radius: 4px; color: var(--teal); font-family: ui-monospace, monospace; font-size: 10px; font-weight: 900; letter-spacing: .16em; }
 .result-card.lose .result-stamp { color: var(--red); }
@@ -262,7 +262,7 @@ button:focus-visible, select:focus-visible { outline: 2px solid var(--teal); out
 .rating-row small { margin-left: auto; color: #8da7aa; font-size: 10px; }
 .result-actions { display: flex; justify-content: flex-end; gap: 8px; }
 .presentation-card {
-  width: min(430px, 100%); padding: 24px 26px 22px;
+  width: min(430px, 100%); max-height: calc(var(--viewport-short-edge, 100dvh) - 24px); min-height: 0; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; touch-action: pan-y; padding: 24px 26px 22px;
   border: 1px solid rgba(157, 211, 203, .3); border-radius: var(--radius-panel);
   background: linear-gradient(145deg, rgba(16, 48, 57, .98), rgba(9, 21, 34, .99) 74%);
   box-shadow: var(--shadow);
@@ -873,13 +873,13 @@ button:focus-visible, select:focus-visible { outline: 2px solid var(--teal); out
 .modifier-actions .button { min-height: 44px; }
 
 @media (max-width: 720px) {
-  .presentation-card { width: min(100%, 430px); padding: 18px 15px 16px; }
+  .presentation-card { width: min(100%, 430px); max-height: calc(var(--viewport-short-edge, 100dvh) - 14px); padding: 18px 15px 16px; }
   .presentation-header h2 { font-size: 20px; }
   .presentation-option { min-height: 44px; font-size: 11px; }
   .presentation-select-option { align-items: stretch; flex-direction: column; }
   .presentation-select-option select { width: 100%; }
 
-  .modifier-overlay { padding: 7px; place-items: stretch; }
+  .modifier-overlay { padding: 7px; place-items: stretch; overflow-y: auto; overscroll-behavior: contain; touch-action: pan-y; }
   .modifier-panel { max-height: 100%; padding: 12px; gap: 9px; border-radius: 10px; }
   .modifier-header h2 { font-size: 19px; }
   .modifier-header p { font-size: 10px; }
@@ -3956,13 +3956,13 @@ const DEATH_MOTION_DURATION = 0.94;
 const CORPSE_FADE_START = 2.25;
 const CORPSE_FADE_DURATION = 0.75;
 const HIT_FLASH_REFERENCE_DURATION = 0.16;
-const PRESENTATION_STORAGE_KEY = 'meme-war-sim-presentation-v1';
+const PRESENTATION_STORAGE_KEY = 'meme-war-sim-presentation-v2';
 const DEFAULT_PRESENTATION_SETTINGS = Object.freeze({
-  showNames: true,
+  showNames: false,
   showHpBars: true,
-  showStatuses: true,
-  showCombatText: true,
-  showEffectLabels: true,
+  showStatuses: false,
+  showCombatText: false,
+  showEffectLabels: false,
   deathStyle: 'varied',
 });
 const DEATH_STYLE_VALUES = new Set(['varied', 'fall', 'spin', 'squash', 'fade']);
@@ -4344,12 +4344,19 @@ class MemeWarApp {
     const viewport = getViewportMetrics();
     const mobileViewport = viewport.shortEdge <= 600;
     const memoryLimited = Number.isFinite(navigator.deviceMemory) && navigator.deviceMemory <= 2;
-    // 先用内嵌模糊档保证首帧；普通设备随后逐档换清晰，省流量/慢网或低内存设备停在安全档。
-    const stayLight = constrained || memoryLimited;
-    const idleTimeout = mobileViewport ? 1800 : 1200;
-    const schedule = window.requestIdleCallback
-      ? (callback) => window.requestIdleCallback(callback, { timeout: idleTimeout })
-      : (callback) => window.setTimeout(callback, mobileViewport ? 450 : 90);
+    // 先用内嵌模糊档保证首帧；手机在首帧后尽快升级，只有省流量/慢网才永久停在 low。
+    // 低内存手机至少升到 medium，避免整个战斗区域停留在模糊档；普通手机继续升到 high。
+    const finalStageIndex = constrained
+      ? 2
+      : memoryLimited
+        ? (mobileViewport ? 3 : 2)
+        : TEXTURE_STAGES.length;
+    const idleTimeout = mobileViewport ? 700 : 1200;
+    const schedule = mobileViewport
+      ? (callback) => window.setTimeout(callback, 140)
+      : window.requestIdleCallback
+        ? (callback) => window.requestIdleCallback(callback, { timeout: idleTimeout })
+        : (callback) => window.setTimeout(callback, 90);
 
     const loadTextureStage = async (stage) => {
       if (!this.renderer) return;
@@ -4373,7 +4380,6 @@ class MemeWarApp {
     const blurTask = loadTextureStage(TEXTURE_STAGES[0]);
     schedule(async () => {
       await blurTask;
-      const finalStageIndex = stayLight ? 2 : TEXTURE_STAGES.length;
       for (const stage of TEXTURE_STAGES.slice(1, finalStageIndex)) {
         await loadTextureStage(stage);
         // 每档之间让出一帧，避免升级纹理时阻塞拖卡与战斗输入。
@@ -6920,7 +6926,8 @@ class MemeWarApp {
       }
       const isRetreating = this.phase === 'battle' && unit.alive !== false && unit.intent === 'retreat';
       label.className = `world-label${unit.side === 'enemy' ? ' enemy' : ''}${isRetreating ? ' retreat' : ''}`;
-      const hpText = this.phase === 'prep' ? '' : ` · ${Math.max(0, Math.ceil(unit.hp ?? 0))}`;
+      // “生命条”只显示画布上的血条；默认不再额外显示头顶的数值文本。
+      const hpText = '';
       const formText = unit.form === 'scooter' ? ' · 电瓶车' : '';
       const liquorText = unit.gaziDrink?.phase === 'berserk' ? ' · 白酒加速' : '';
       const doritosText = unit.data.id === 'miaocuijiao' && Number.isFinite(unit.doritosMaxAmmo)
