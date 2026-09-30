@@ -262,7 +262,7 @@ button:focus-visible, select:focus-visible { outline: 2px solid var(--teal); out
 .rating-row small { margin-left: auto; color: #8da7aa; font-size: 10px; }
 .result-actions { display: flex; justify-content: flex-end; gap: 8px; }
 .presentation-card {
-  width: min(430px, 100%); max-height: calc(var(--viewport-short-edge, 100dvh) - 24px); min-height: 0; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; touch-action: pan-y; padding: 24px 26px 22px;
+  width: min(430px, 100%); max-height: calc(100dvh - 24px); min-height: 0; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; touch-action: pan-y; padding: 24px 26px 22px;
   border: 1px solid rgba(157, 211, 203, .3); border-radius: var(--radius-panel);
   background: linear-gradient(145deg, rgba(16, 48, 57, .98), rgba(9, 21, 34, .99) 74%);
   box-shadow: var(--shadow);
@@ -285,8 +285,27 @@ button:focus-visible, select:focus-visible { outline: 2px solid var(--teal); out
 .presentation-opacity-option input[type="range"] { grid-column: 1 / -1; width: 100%; min-height: 40px; accent-color: var(--teal); cursor: pointer; }
 .presentation-opacity-option output { min-width: 38px; color: var(--teal); font-family: ui-monospace, monospace; font-size: 11px; font-weight: 900; text-align: right; }
 .presentation-select-option select {
-  min-height: 36px; min-width: 150px; border: 1px solid var(--line); border-radius: 6px;
+  min-height: 44px; min-width: 150px; border: 1px solid var(--line); border-radius: 6px;
   padding: 5px 8px; color: var(--ink); background: var(--surface-1); font-size: 11px;
+}
+.touch-tool-toggle { display: none; }
+#app.is-phone-viewport.phase-prep .touch-tool-toggle {
+  display: flex; align-items: center; justify-content: center; width: 100%; min-height: 48px;
+  margin: 0 0 7px; padding: 8px 6px; border-width: 2px; font-size: 16px; letter-spacing: .04em;
+  touch-action: manipulation; transform-style: preserve-3d;
+}
+#app.is-phone-viewport.phase-prep .touch-tool-toggle[data-active-mode="place"] {
+  border-color: #5c739a; color: #fff8e7; background: #536b91; box-shadow: 0 4px 0 rgba(46, 58, 77, .28);
+}
+#app.is-phone-viewport.phase-prep .touch-tool-toggle[data-active-mode="clear"] {
+  border-color: #b87820; color: #fff8e7; background: #b87820; box-shadow: 0 4px 0 rgba(94, 62, 22, .26);
+}
+.touch-tool-toggle.is-flipping { animation: touch-tool-flip .42s ease-in-out; }
+@keyframes touch-tool-flip {
+  0% { transform: perspective(260px) rotateX(0); }
+  44% { transform: perspective(260px) rotateX(88deg); }
+  56% { transform: perspective(260px) rotateX(-88deg); }
+  100% { transform: perspective(260px) rotateX(0); }
 }
 .toast { position: fixed; left: 50%; bottom: 192px; z-index: 12; transform: translate(-50%, 16px); padding: 9px 15px; border: 1px solid rgba(99, 224, 203, .3); border-radius: var(--radius-control); color: #dff8f0; background: rgba(8, 29, 40, .94); box-shadow: 0 12px 35px rgba(0, 0, 0, .28); font-size: 11px; opacity: 0; pointer-events: none; transition: opacity .18s ease, transform .18s ease; }
 .toast.show { opacity: 1; transform: translate(-50%, 0); }
@@ -523,19 +542,19 @@ button:focus-visible, select:focus-visible { outline: 2px solid var(--teal); out
   #app.is-panel-collapsed #sidePanel .panel-heading h1 { font-size: 11px; }
 }
 
-/* 手机竖屏不再弹提醒：把游戏视口直接按长边×短边绘制并旋转铺满屏幕。 */
-@media (max-width: 600px) and (orientation: portrait) {
-  html, body { width: 100%; height: 100%; overflow: hidden; }
-  #app.is-auto-landscape {
-    position: fixed; inset: 0 auto auto 0; width: 100vh; height: 100vw;
-    min-width: 0; min-height: 0; max-width: none; max-height: none; overflow: hidden;
-    grid-template-rows: 56px minmax(0, 1fr) 112px;
-    transform-origin: 0 0; transform: translateX(100vw) rotate(90deg);
-  }
-  #app.is-auto-landscape.phase-battle, #app.is-auto-landscape.phase-result {
-    grid-template-rows: 56px minmax(0, 1fr) 0;
-  }
+/* 竖屏手机的战场按实际长短边横向铺开；菜单仍保持直立便于点选与滚动。 */
+html.is-auto-landscape,
+html.is-auto-landscape body { width: 100%; height: 100%; overflow: hidden; }
+html.is-auto-landscape #app.is-auto-landscape {
+  position: fixed; inset: 0 auto auto 0;
+  width: var(--viewport-long-edge, 100vh); height: var(--viewport-short-edge, 100vw);
+  min-width: 0; min-height: 0; max-width: none; max-height: none; overflow: hidden;
+  grid-template-rows: 56px minmax(0, 1fr);
+  transform-origin: 0 0;
+  transform: translateX(var(--viewport-short-edge, 100vw)) rotate(90deg);
 }
+html.is-auto-landscape #app.is-auto-landscape.phase-battle,
+html.is-auto-landscape #app.is-auto-landscape.phase-result { grid-template-rows: 56px minmax(0, 1fr); }
 
 #app.is-auto-landscape #topbar {
   flex-wrap: nowrap; min-height: 56px; height: 56px; gap: 8px;
@@ -1477,7 +1496,7 @@ html, body {
 #app.menu-background-active > #sidePanel,
 #app.menu-background-active > #unitDock { display: none !important; }
 #app.menu-background-active #playArea {
-  position: fixed; z-index: 0; inset: 0; width: 100vw; height: 100vh; height: 100dvh;
+  position: absolute; z-index: 0; inset: 0; width: 100%; height: 100%;
   min-width: 0; min-height: 0; background: #e5dcc9;
 }
 #app.menu-background-active #battlefieldShell {
@@ -1515,7 +1534,7 @@ html, body {
 .start-menu-heading p { margin: 8px 0 0; font-size: 15px; }
 .start-menu-home,
 .start-menu-level-section {
-  position: relative; z-index: 2; width: min(430px, calc(100vw - 32px)); min-width: 0; max-height: min(90dvh, 780px);
+  position: relative; inset: auto; transform: none; z-index: 2; width: min(430px, calc(100vw - 32px)); min-width: 0; max-height: min(90dvh, 780px);
   padding: clamp(20px, 3.2vw, 34px); border: 2px solid rgba(83, 107, 145, .72); border-radius: 7px 11px 6px 9px;
   color: #3f4e65; background: rgba(248, 239, 219, .88); box-shadow: 5px 6px 0 rgba(56, 54, 48, .2);
   backdrop-filter: blur(4px);
@@ -1543,6 +1562,31 @@ html, body {
 .start-menu-actions .button { min-height: 48px; }
 .start-menu-actions .menu-continue-button { min-width: 190px; }
 .presentation-over-menu { z-index: 11; background: rgba(248, 239, 219, .16); backdrop-filter: blur(2px); }
+
+/* 竖屏手机自动转横屏时，主页、关卡与主页设置都随战场一起旋转。 */
+html.is-auto-landscape .start-menu-overlay,
+html.is-auto-landscape #presentationOverlay.presentation-over-menu {
+  position: fixed; inset: auto; top: 0; left: 0; right: auto; bottom: auto;
+  width: var(--viewport-long-edge, 100dvh); height: var(--viewport-short-edge, 100dvw);
+  padding: 12px; overflow: hidden; transform-origin: 0 0;
+  transform: translateX(var(--viewport-short-edge, 100dvw)) rotate(90deg);
+}
+html.is-auto-landscape .start-menu-home {
+  width: min(430px, calc(var(--viewport-long-edge, 100dvh) - 32px));
+  max-height: calc(var(--viewport-short-edge, 100dvw) - 24px);
+}
+html.is-auto-landscape .start-menu-level-section {
+  width: min(700px, calc(var(--viewport-long-edge, 100dvh) - 28px));
+  max-height: calc(var(--viewport-short-edge, 100dvw) - 24px);
+}
+html.is-auto-landscape .start-menu-level-list {
+  max-height: calc(var(--viewport-short-edge, 100dvw) - 170px);
+}
+html.is-auto-landscape #presentationOverlay.presentation-over-menu .presentation-card {
+  width: min(430px, calc(var(--viewport-long-edge, 100dvh) - 24px));
+  max-height: calc(var(--viewport-short-edge, 100dvw) - 24px);
+}
+
 .presentation-volume-option {
   display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 8px 12px;
   min-height: 68px; padding: 10px 12px; border: 2px solid var(--line); border-radius: 4px 6px 5px 4px;
@@ -1560,14 +1604,24 @@ html, body {
   .start-menu-home { width: min(410px, calc(100vw - 28px)); padding: 22px 18px; }
   .start-menu-home-actions { gap: 9px; margin-top: 20px; }
   .menu-main-action { min-height: 50px; font-size: 16px; }
-  .start-menu-level-section { width: calc(100vw - 24px); max-height: 88dvh; padding: 12px; }
+  .start-menu-level-section { width: calc(100vw - 24px); max-height: calc(100dvh - 24px); padding: 12px; }
   .start-menu-level-list { grid-template-columns: repeat(2, minmax(0, 1fr)); max-height: 58dvh; gap: 6px; padding: 3px; }
-  .menu-level-card { min-height: 46px; }
+  .menu-level-card { min-height: 48px; }
   .menu-level-number { font-size: 16px; }
-  .menu-level-name { font-size: 11px; }
-  .menu-level-state { font-size: 9px; }
+  .menu-level-name { font-size: 12px; }
+  .menu-level-state { font-size: 10px; }
   .start-menu-actions .button { min-width: 112px; }
   .start-menu-actions .menu-continue-button { min-width: 0; flex: 1; }
+  .presentation-over-menu { padding: max(8px, env(safe-area-inset-top)) max(8px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left)); }
+  .presentation-card { max-height: calc(100dvh - 24px); padding: 18px 15px 16px; }
+  .presentation-note { font-size: 13px; }
+  .presentation-option { min-height: 48px; font-size: 14px; }
+  .presentation-select-option select { min-height: 44px; font-size: 13px; }
+  #app.is-auto-landscape .presentation-card { max-height: calc(var(--viewport-short-edge, 100dvh) - 24px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .touch-tool-toggle.is-flipping { animation: none; }
 }
 </style>
     <!-- MEME_WAR_STATIC_STYLE_END -->
@@ -1621,7 +1675,7 @@ html, body {
 
           <div id="prepGuide" class="floating-guide">
             <span class="guide-dot"></span>
-            拖卡或点击选中后部署 · 点击远程单位查看白色攻击范围 · 拖回卡片撤销并退款
+            点兵种卡选中，再点战场部署 · 右键或清除模式扫除 · 点远程单位查看攻击范围
           </div>
           <div id="battleGuide" class="floating-guide hidden">
             <span class="guide-dot guide-dot-battle"></span>
@@ -1672,9 +1726,9 @@ html, body {
         <div class="dock-header">
           <div>
             <span class="eyebrow">UNIT MARKET</span>
-            <strong>拖卡到左侧部署 · 上下滑动浏览 · 拖回卡片退款</strong>
+            <strong>点卡选兵 · 点战场部署 · 拖回卡片退款</strong>
           </div>
-          <div class="dock-meta"><span id="deployedCount">0</span> 已部署 · 左键按住连放 · 右键扫除 · 手机双击清兵，第二下拖扫</div>
+          <div class="dock-meta"><span id="deployedCount">0</span> 已部署 · 触屏按钮切换放置/清除 · 鼠标右键清除</div>
         </div>
         <div id="unitList" class="unit-list"></div>
       </section>
@@ -7081,8 +7135,6 @@ const MODIFIER_LEVEL_FIELDS = [
 const $ = (selector) => document.querySelector(selector);
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 const DEPLOYMENT_REPEAT_INTERVAL_MS = 180;
-const DEPLOYMENT_TOUCH_TAP_WINDOW_MS = 360;
-const DEPLOYMENT_TOUCH_TAP_DISTANCE = 32;
 const DEPLOYMENT_TOUCH_DRAG_THRESHOLD = 8;
 const distanceToSegment = (point, start, end) => {
   const dx = end.x - start.x;
@@ -7661,8 +7713,9 @@ function readModifierDraft() {
 }
 
 function getViewportMetrics() {
-  const width = Math.max(1, Number(window.visualViewport?.width) || window.innerWidth || 1);
-  const height = Math.max(1, Number(window.visualViewport?.height) || window.innerHeight || 1);
+  // Match CSS layout dimensions; visualViewport can shrink during pinch zoom.
+  const width = Math.max(1, Number(window.innerWidth) || document.documentElement.clientWidth || 1);
+  const height = Math.max(1, Number(window.innerHeight) || document.documentElement.clientHeight || 1);
   return {
     width,
     height,
@@ -7820,10 +7873,12 @@ class MemeWarApp {
     this.spent = 0;
     this.nextDeploymentId = 1;
     this.selectedUnitId = null;
+    this.touchToolMode = 'default';
+    this.touchToolFlipTimer = null;
+    this.isPhoneViewport = false;
     this.draggedDeployment = null;
     this.placementRepeat = null;
     this.eraseGesture = null;
-    this.touchDeploymentTap = null;
     this.cardPointer = null;
     this.draggedUnit = null;
     this.dockScrollDrag = null;
@@ -7896,6 +7951,7 @@ class MemeWarApp {
       eventLog: $('#eventLog'),
       speedReadout: $('#speedReadout'),
       unitList: $('#unitList'),
+      touchToolButton: null,
       deployedCount: $('#deployedCount'),
       resultOverlay: $('#resultOverlay'),
       resultCard: $('.result-card'),
@@ -7970,6 +8026,7 @@ class MemeWarApp {
     this.setInfoPanelCollapsed(false);
     this.populateLevelPicker();
     this.populateUnitDock();
+    this.createTouchToolButton();
     this.bindEvents();
     this.syncPresentationControls();
     this.updateLevelUi();
@@ -8053,9 +8110,14 @@ class MemeWarApp {
     const isPhoneViewport = nextViewport.shortEdge <= 600 && nextViewport.longEdge <= 1400;
     const shouldAutoLandscape = isPhoneViewport && !nextViewport.isLandscape;
     this.viewport = nextViewport;
+    this.isPhoneViewport = isPhoneViewport;
+    document.documentElement.classList.toggle('is-auto-landscape', shouldAutoLandscape);
     document.documentElement.style.setProperty('--viewport-long-edge', `${nextViewport.longEdge}px`);
     document.documentElement.style.setProperty('--viewport-short-edge', `${nextViewport.shortEdge}px`);
+    document.documentElement.style.setProperty('--viewport-width', `${nextViewport.width}px`);
+    document.documentElement.style.setProperty('--viewport-height', `${nextViewport.height}px`);
     this.elements.app.classList.toggle('is-auto-landscape', shouldAutoLandscape);
+    this.elements.app.classList.toggle('is-phone-viewport', isPhoneViewport);
   }
 
   get isCompactLandscape() {
@@ -8068,6 +8130,46 @@ class MemeWarApp {
 
   getMinimumZoom() {
     return this.isCompactLandscape || this.isAutoLandscape ? MOBILE_MIN_ZOOM : MIN_ZOOM;
+  }
+
+  createTouchToolButton() {
+    const button = makeElement('button', 'button button-primary touch-tool-toggle', '放置');
+    button.type = 'button';
+    button.id = 'touchToolToggle';
+    button.addEventListener('click', () => this.toggleTouchToolMode());
+    this.elements.unitList?.before(button);
+    this.elements.touchToolButton = button;
+    this.syncTouchToolButton();
+  }
+
+  syncTouchToolButton() {
+    const button = this.elements.touchToolButton;
+    if (!button) return;
+    const activeMode = this.touchToolMode === 'clear' ? 'clear' : 'place';
+    const nextMode = activeMode === 'place' ? 'clear' : 'place';
+    const activeLabel = activeMode === 'place' ? '放置' : '清除';
+    const nextLabel = nextMode === 'place' ? '放置' : '清除';
+    button.textContent = this.touchToolMode === 'default' ? '放置' : nextLabel;
+    button.dataset.activeMode = activeMode;
+    button.dataset.nextMode = this.touchToolMode === 'default' ? 'place' : nextMode;
+    button.setAttribute('aria-pressed', String(this.touchToolMode !== 'default' && activeMode === 'place'));
+    button.setAttribute('aria-label', this.touchToolMode === 'default'
+      ? '进入放置模式'
+      : `当前${activeLabel}模式，点击切换到${nextLabel}模式`);
+  }
+
+  toggleTouchToolMode() {
+    this.touchToolMode = this.touchToolMode === 'default' || this.touchToolMode === 'clear' ? 'place' : 'clear';
+    this.syncTouchToolButton();
+    const button = this.elements.touchToolButton;
+    if (button) {
+      window.clearTimeout(this.touchToolFlipTimer);
+      button.classList.remove('is-flipping');
+      void button.offsetWidth;
+      button.classList.add('is-flipping');
+      this.touchToolFlipTimer = window.setTimeout(() => button.classList.remove('is-flipping'), 420);
+    }
+    this.showToast(`已进入${this.touchToolMode === 'place' ? '放置' : '清除'}模式。`);
   }
 
   setInfoPanelCollapsed(collapsed) {
@@ -8523,7 +8625,7 @@ class MemeWarApp {
       card.dataset.unitId = unit.id;
       const skillSummary = (unit.skills ?? []).map((skill) => `${SKILL_TYPE_ICONS[skill.type] ?? '·'} ${skill.name}`).join(' · ') || '基础攻击';
       const effectSummary = unit.effectSummary || ((unit.skills ?? []).map((skill) => skill.name).join('、') || '基础攻击');
-      card.setAttribute('aria-label', `${unit.name}，${unit.price} 金，${unit.roleLabel}，效果：${effectSummary}，技能：${skillSummary}，可拖到左侧战场部署`);
+      card.setAttribute('aria-label', `${unit.name}，${unit.price} 金，${unit.roleLabel}，效果：${effectSummary}，技能：${skillSummary}，点击选中后部署，也可拖动`);
 
       const top = makeElement('div', 'card-top');
       const glyph = makeElement('span', 'unit-glyph', unit.name.slice(0, 1));
@@ -8704,7 +8806,6 @@ class MemeWarApp {
     window.addEventListener('blur', () => {
       this.stopDeploymentRepeat();
       this.finishEraseGesture(false);
-      this.touchDeploymentTap = null;
       this.draggedDeployment = null;
       this.slowInput = false;
       this.cameraDrag = null;
@@ -8724,11 +8825,12 @@ class MemeWarApp {
     }
     this.stopDeploymentRepeat();
     this.finishEraseGesture(false);
-    this.touchDeploymentTap = null;
     this.levelIndex = index;
     this.modifier.levelIndex = this.levelIndex;
     this.level = this.levels[this.levelIndex];
     this.phase = 'prep';
+    this.touchToolMode = 'default';
+    this.syncTouchToolButton();
     this.deployments = [];
     this.spent = 0;
     this.nextDeploymentId = 1;
@@ -8876,7 +8978,6 @@ class MemeWarApp {
     }
     this.stopDeploymentRepeat();
     this.finishEraseGesture(false);
-    this.touchDeploymentTap = null;
     this.phase = 'battle';
     this.paused = false;
     this.selectedUnitId = null;
@@ -9565,24 +9666,16 @@ class MemeWarApp {
     this.audio.unlock();
     const world = this.pointerToWorld(event);
     if (this.phase === 'prep') {
-      if (event.button === 2) {
+      const usesTouchTools = event.pointerType === 'touch' || this.isPhoneViewport;
+      if (event.button === 2 && event.pointerType !== 'touch') {
         this.beginEraseGesture(event, world);
         return;
       }
       if (event.button !== 0) return;
       const existing = this.findDeploymentAt(world.x, world.y);
-      if (event.pointerType === 'touch') {
-        const previousTap = this.touchDeploymentTap;
-        const isDoubleTap = existing && previousTap?.deploymentId === existing.id
-          && performance.now() - previousTap.at <= DEPLOYMENT_TOUCH_TAP_WINDOW_MS
-          && Math.hypot(event.clientX - previousTap.clientX, event.clientY - previousTap.clientY) <= DEPLOYMENT_TOUCH_TAP_DISTANCE;
-        this.touchDeploymentTap = null;
-        if (isDoubleTap) {
-          this.beginEraseGesture(event, world);
-          return;
-        }
-      } else {
-        this.touchDeploymentTap = null;
+      if (usesTouchTools && this.touchToolMode === 'clear') {
+        this.beginEraseGesture(event, world);
+        return;
       }
       if (existing) {
         this.draggedDeployment = {
@@ -9706,13 +9799,6 @@ class MemeWarApp {
         this.removeDeployment(drag.deployment);
         this.showToast(`${data.name} 已撤销，${data.price} 金已退回。`);
         this.audio.blip(190, 0.06, 'square', 0.018);
-      } else if (event.pointerType === 'touch' && event.type === 'pointerup' && !drag.moved) {
-        this.touchDeploymentTap = {
-          deploymentId: drag.deployment.id,
-          at: performance.now(),
-          clientX: event.clientX,
-          clientY: event.clientY,
-        };
       }
       return;
     }
