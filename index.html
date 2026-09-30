@@ -542,9 +542,10 @@ button:focus-visible, select:focus-visible { outline: 2px solid var(--teal); out
   #app.is-panel-collapsed #sidePanel .panel-heading h1 { font-size: 11px; }
 }
 
-/* 竖屏手机的战场按实际长短边横向铺开；菜单仍保持直立便于点选与滚动。 */
+/* 竖屏手机按实际长短边铺成横向游戏坐标。 */
 html.is-auto-landscape,
 html.is-auto-landscape body { width: 100%; height: 100%; overflow: hidden; }
+html.is-auto-landscape { --auto-landscape-end-inset: clamp(72px, 14vw, 92px); }
 html.is-auto-landscape #app.is-auto-landscape {
   position: fixed; inset: 0 auto auto 0;
   width: var(--viewport-long-edge, 100vh); height: var(--viewport-short-edge, 100vw);
@@ -557,16 +558,11 @@ html.is-auto-landscape #app.is-auto-landscape.phase-battle,
 html.is-auto-landscape #app.is-auto-landscape.phase-result { grid-template-rows: 56px minmax(0, 1fr); }
 
 #app.is-auto-landscape #topbar {
-  flex-wrap: nowrap; min-height: 56px; height: 56px; gap: 8px;
-  padding: 6px max(12px, env(safe-area-inset-right)) 6px max(12px, env(safe-area-inset-left));
+  flex-wrap: nowrap; min-height: 56px; height: 56px; gap: 8px; justify-content: space-between;
+  padding: max(6px, env(safe-area-inset-right)) max(var(--auto-landscape-end-inset), env(safe-area-inset-bottom)) max(6px, env(safe-area-inset-left)) max(12px, env(safe-area-inset-top));
 }
-#app.is-auto-landscape .brand-lockup { min-width: 132px; gap: 6px; }
-#app.is-auto-landscape .brand-mark { width: 30px; height: 30px; border-radius: 8px; font-size: 16px; }
-#app.is-auto-landscape .brand-title { font-size: 12px; }
 #app.is-auto-landscape .brand-subtitle, #app.is-auto-landscape .phase-stat, #app.is-auto-landscape .budget-stat { display: none; }
-#app.is-auto-landscape .level-picker { margin-left: auto; }
-#app.is-auto-landscape .level-picker select { min-width: 96px; min-height: 44px; padding-block: 5px; font-size: 10px; }
-#app.is-auto-landscape .top-actions { gap: 4px; }
+#app.is-auto-landscape .top-actions { gap: 4px; margin-left: 0; }
 #app.is-auto-landscape .top-actions .button { min-height: 44px; padding-inline: 7px; font-size: 10px; }
 #app.is-auto-landscape #playArea { min-height: 0; }
 #app.is-auto-landscape #battlefieldShell { inset: 0; }
@@ -604,12 +600,12 @@ html.is-auto-landscape #app.is-auto-landscape.phase-result { grid-template-rows:
 #app.is-auto-landscape.is-panel-collapsed #sidePanel .panel-heading p,
 #app.is-auto-landscape.is-panel-collapsed #sidePanel .panel-heading .eyebrow { display: none; }
 #app.is-auto-landscape #unitDock {
-  height: 112px; padding: 6px max(12px, env(safe-area-inset-right)) 0 max(12px, env(safe-area-inset-left));
+  height: 112px; padding: max(6px, env(safe-area-inset-right)) max(var(--auto-landscape-end-inset), env(safe-area-inset-bottom)) max(0px, env(safe-area-inset-left)) max(12px, env(safe-area-inset-top));
 }
 #app.is-auto-landscape .dock-header { margin-bottom: 5px; }
 #app.is-auto-landscape .dock-header strong { max-width: 70vw; margin-top: 2px; font-size: 11px; line-height: 1.2; }
 #app.is-auto-landscape .dock-meta { display: block; font-size: 9px; }
-#app.is-auto-landscape .unit-list { height: 64px; gap: 6px; padding: 0; }
+#app.is-auto-landscape .unit-list { height: 64px; gap: 6px; padding: 0 var(--auto-landscape-end-inset) 0 0; scroll-padding-inline-end: var(--auto-landscape-end-inset); }
 #app.is-auto-landscape .unit-card { flex-basis: 96px; height: 64px; min-height: 0; padding: 6px; }
 #app.is-auto-landscape .unit-glyph { width: 24px; height: 24px; flex-basis: 24px; }
 #app.is-auto-landscape .unit-name { font-size: 11px; }
@@ -1568,7 +1564,7 @@ html.is-auto-landscape .start-menu-overlay,
 html.is-auto-landscape #presentationOverlay.presentation-over-menu {
   position: fixed; inset: auto; top: 0; left: 0; right: auto; bottom: auto;
   width: var(--viewport-long-edge, 100dvh); height: var(--viewport-short-edge, 100dvw);
-  padding: 12px; overflow: hidden; transform-origin: 0 0;
+  padding: max(12px, env(safe-area-inset-right)) max(var(--auto-landscape-end-inset), env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left)) max(12px, env(safe-area-inset-top)); overflow: hidden; transform-origin: 0 0;
   transform: translateX(var(--viewport-short-edge, 100dvw)) rotate(90deg);
 }
 html.is-auto-landscape .start-menu-home {
@@ -1623,20 +1619,37 @@ html.is-auto-landscape #presentationOverlay.presentation-over-menu .presentation
 @media (prefers-reduced-motion: reduce) {
   .touch-tool-toggle.is-flipping { animation: none; }
 }
+
+/* Portrait webviews keep a landscape game surface. Reserve the browser-toolbar edge and
+   override portrait-only page rules that would otherwise stack the landscape level grid. */
+html.is-auto-landscape .start-menu-level-section {
+  top: auto; right: auto; bottom: auto; left: auto;
+  width: min(700px, calc(var(--viewport-long-edge, 100dvh) - var(--auto-landscape-end-inset) - 24px));
+  max-height: calc(var(--viewport-short-edge, 100dvw) - 24px); padding: 14px 16px;
+}
+html.is-auto-landscape .start-menu-level-list {
+  grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px;
+  max-height: calc(var(--viewport-short-edge, 100dvw) - 170px); padding: 3px 5px 7px 2px;
+}
+html.is-auto-landscape .menu-level-card { min-height: 48px; padding: 5px 6px; }
+html.is-auto-landscape .menu-level-number { font-size: 15px; }
+html.is-auto-landscape .menu-level-name { font-size: 10px; }
+html.is-auto-landscape .menu-level-state { font-size: 8px; }
+html.is-auto-landscape .start-menu-actions { gap: 8px; padding-top: 10px; }
+html.is-auto-landscape .start-menu-actions .button { min-height: 44px; }
+html.is-auto-landscape .menu-back-button { min-width: 112px; }
+html.is-auto-landscape .menu-continue-button { min-width: 0; flex: 1; }
+html.is-auto-landscape #presentationOverlay:not(.presentation-over-menu) {
+  padding: max(12px, env(safe-area-inset-right)) max(var(--auto-landscape-end-inset), env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left)) max(12px, env(safe-area-inset-top));
+}
+html.is-auto-landscape .presentation-select-option { align-items: center; flex-direction: row; }
+html.is-auto-landscape .presentation-select-option select { width: auto; }
 </style>
     <!-- MEME_WAR_STATIC_STYLE_END -->
   </head>
   <body>
     <div id="app" class="phase-prep">
       <header id="topbar">
-        <div class="brand-lockup">
-          <div class="brand-mark">梗</div>
-          <div>
-            <div class="brand-title">梗战争模拟器</div>
-            <div class="brand-subtitle">NATIVE WEBGL / DUDEBUILDER LAB</div>
-          </div>
-        </div>
-
         <div class="top-speed-controls" aria-label="观战速度">
           <span id="speedReadout" class="top-speed-readout">1×</span>
           <button class="speed-button" data-speed="0.5" type="button" aria-label="0.5 倍速">0.5×</button>
@@ -1655,10 +1668,7 @@ html.is-auto-landscape #presentationOverlay.presentation-over-menu .presentation
           <strong><span id="budgetLabel">600</span><small> 金</small></strong>
         </div>
 
-        <label class="level-picker">
-          <span class="stat-kicker">关卡</span>
-          <select id="levelSelect" aria-label="选择关卡"></select>
-        </label>
+        <select id="levelSelect" class="hidden" aria-label="当前关卡" tabindex="-1"></select>
 
         <div class="top-actions">
           <button id="presentationButton" class="button button-ghost" type="button">显示</button>
@@ -1675,7 +1685,7 @@ html.is-auto-landscape #presentationOverlay.presentation-over-menu .presentation
 
           <div id="prepGuide" class="floating-guide">
             <span class="guide-dot"></span>
-            点兵种卡选中，再点战场部署 · 右键或清除模式扫除 · 点远程单位查看攻击范围
+            点兵种卡选中，再点战场部署 · 清除模式扫除 · 点远程单位查看攻击范围
           </div>
           <div id="battleGuide" class="floating-guide hidden">
             <span class="guide-dot guide-dot-battle"></span>
@@ -1728,7 +1738,7 @@ html.is-auto-landscape #presentationOverlay.presentation-over-menu .presentation
             <span class="eyebrow">UNIT MARKET</span>
             <strong>点卡选兵 · 点战场部署 · 拖回卡片退款</strong>
           </div>
-          <div class="dock-meta"><span id="deployedCount">0</span> 已部署 · 触屏按钮切换放置/清除 · 鼠标右键清除</div>
+          <div class="dock-meta"><span id="deployedCount">0</span> 已部署 · 触屏切换放置/清除</div>
         </div>
         <div id="unitList" class="unit-list"></div>
       </section>
@@ -8204,9 +8214,9 @@ class MemeWarApp {
   }
 
   createStartMenu() {
-    const homeButton = makeElement('button', 'button button-ghost menu-home-button', '菜单');
+    const homeButton = makeElement('button', 'button button-ghost menu-home-button', '选关');
     homeButton.type = 'button';
-    homeButton.setAttribute('aria-label', '打开开始界面');
+    homeButton.setAttribute('aria-label', '打开关卡选择');
     this.elements.topActions?.prepend(homeButton);
     this.elements.menuButton = homeButton;
     if (this.elements.presentationButton) {
@@ -8439,11 +8449,11 @@ class MemeWarApp {
     }
   }
 
-  showStartMenu() {
+  showStartMenu(initialPage = 'home') {
     if (this.phase === 'battle') return false;
     if (this.phase === 'result') this.resetLevel(this.levelIndex, { preserveLayout: true });
     this.menuSelectedIndex = this.isLevelUnlocked(this.levelIndex) ? this.levelIndex : 0;
-    this.menuPage = 'home';
+    this.menuPage = initialPage === 'levels' ? 'levels' : 'home';
     if (this.elements.startMenuHint) this.elements.startMenuHint.textContent = '';
     this.renderStartMenu();
     this.elements.startMenuOverlay?.classList.remove('hidden');
@@ -8451,7 +8461,10 @@ class MemeWarApp {
     this.elements.app?.classList.add('menu-background-active');
     this.startMenuBattleCycle();
     this.syncRendererToLayout({ preserveFocus: true });
-    this.elements.startMenuStartButton?.focus({ preventScroll: true });
+    const focusTarget = this.menuPage === 'levels'
+      ? this.elements.startMenuLevelButtons[this.menuSelectedIndex]
+      : this.elements.startMenuStartButton;
+    focusTarget?.focus({ preventScroll: true });
     return true;
   }
 
@@ -8677,7 +8690,7 @@ class MemeWarApp {
   }
 
   bindEvents() {
-    this.elements.menuButton?.addEventListener('click', () => this.showStartMenu());
+    this.elements.menuButton?.addEventListener('click', () => this.showStartMenu('levels'));
     this.elements.startMenuOverlay?.addEventListener('click', (event) => {
       if (event.target === this.elements.startMenuOverlay) event.preventDefault();
     });
@@ -10275,33 +10288,27 @@ class MemeWarApp {
   finishBattle() {
     if (this.resultShown || !this.simulation || this.simulation.phase !== 'result') return;
     this.resultShown = true;
-    this.phase = 'result';
-    this.paused = false;
     const won = this.simulation.outcome === 'win';
-    if (won) this.recordCampaignVictory(this.levelIndex);
-    const remaining = Math.max(0, this.level.budget - this.spent + this.simulation.goldBonus);
-    const ratio = this.level.budget > 0 ? remaining / this.level.budget : 0;
-    const rating = ratio >= 0.5 ? 'S' : ratio >= 0.35 ? 'A' : ratio >= 0.2 ? 'B' : ratio >= 0.05 ? 'C' : 'D';
-    this.elements.resultCard.classList.toggle('lose', !won);
-    this.elements.resultStamp.textContent = won ? 'VICTORY' : 'DEFEAT';
-    this.elements.resultTitle.textContent = won ? '胜利' : '失败';
-    this.elements.resultSummary.textContent = won
-      ? `敌方 ${this.simulation.enemyRosterCount} 名单位已全部击破，战场留下了 ${this.simulation.playerCount} 名己方单位。`
-      : '你的编队被清空了。换一个克制思路，再把部署点拉开一点。';
-    this.elements.resultInitial.textContent = String(this.level.budget);
-    this.elements.resultSpent.textContent = String(this.spent);
-    this.elements.resultBonus.textContent = `+${this.simulation.goldBonus}`;
-    this.elements.resultRemaining.textContent = String(remaining);
-    this.elements.resultRating.textContent = won ? rating : '—';
-    this.elements.resultRatio.textContent = won ? `${Math.round(ratio * 100)}% 预算留存` : '本局未完成';
-    const nextIndex = this.levelIndex + 1;
-    this.elements.nextButton.textContent = this.isLevelUnlocked(nextIndex) ? '下一关' : '再试一次';
-    this.elements.nextButton.disabled = false;
-    this.elements.resultOverlay.classList.remove('hidden');
-    this.elements.app.classList.remove('phase-battle');
-    this.elements.app.classList.add('phase-result');
+    const completedLevel = this.level;
+    const completedIndex = this.levelIndex;
     this.audio.event(won ? 'reward' : 'danger');
-    this.syncUi();
+    if (!won) {
+      this.resetLevel(completedIndex, { preserveLayout: true });
+      this.showToast(`第 ${completedLevel.id} 关失败，阵容已保留；调整后点“开始战斗”重试。`);
+      return;
+    }
+
+    this.recordCampaignVictory(completedIndex);
+    const nextIndex = completedIndex + 1;
+    if (nextIndex < this.levels.length && this.isLevelUnlocked(nextIndex)) {
+      const nextLevel = this.levels[nextIndex];
+      this.resetLevel(nextIndex, { preserveLayout: true });
+      this.showToast(`第 ${completedLevel.id} 关胜利，进入第 ${nextLevel.id} 关部署。`);
+      return;
+    }
+
+    this.resetLevel(completedIndex, { preserveLayout: true });
+    this.showToast('全部关卡已通关！可用“选关”查看已完成关卡。');
   }
 
   syncUi() {
