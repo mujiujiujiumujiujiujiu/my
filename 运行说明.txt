@@ -9,7 +9,7 @@
 
 本包只包含运行所需内容：
 - index.html：内嵌游戏程序、数据和样式；首屏不再等待数 MB 的图片 base64 脚本。
-- assets：低档角色与特效图集、地图底纹，以及仅在本地直开时按需加载的贴图脚本；网页按内容版本号缓存独立 PNG。
+- assets：网页优先加载轻量 WebP，角色与特效无损，地图为 90 品质；原 PNG 用作失败回退。本地直开使用独立贴图脚本；网页按内容版本号缓存。
 - audio、audioHurt、audioJinHit、audioBloom、audioDead：选中单位、受伤、近战攻击、范围爆发与死亡所需的 MP3 音效。
 - favicon.svg：浏览器标签图标。
 - run-game.mjs：零依赖本地静态服务器与浏览器启动器。
