@@ -10,11 +10,13 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)));
 const port = Number.parseInt(process.env.MEME_WAR_PORT ?? '4173', 10) || 4173;
 const url = 'http://127.0.0.1:' + port + '/';
 const MIME_TYPES = {
+  '.js': 'text/javascript; charset=utf-8',
   '.html': 'text/html; charset=utf-8',
   '.svg': 'image/svg+xml',
   '.png': 'image/png',
   '.jpg': 'image/jpeg',
   '.jpeg': 'image/jpeg',
+  '.mp3': 'audio/mpeg',
 };
 
 function portIsOpen() {
