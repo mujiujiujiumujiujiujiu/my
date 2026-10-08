@@ -11,6 +11,7 @@
 - index.html：内嵌游戏程序、数据和样式；首屏不再等待数 MB 的图片 base64 脚本。
 - assets：网页优先加载轻量 WebP，角色与特效无损，地图为 90 品质；原 PNG 用作失败回退。本地直开使用独立贴图脚本；网页按内容版本号缓存。
 - audio、audioHurt、audioJinHit、audioBloom、audioDead：选中单位、受伤、近战攻击、范围爆发与死亡所需的 MP3 音效。
+- 资源加载顺序：音效优先，随后角色与特效，最后地图。网页 MP3 解码缓存跨关复用，声音跟随 1/2/4 倍速；结算、重开和切关截断旧声音。
 - favicon.svg：浏览器标签图标。
 - run-game.mjs：零依赖本地静态服务器与浏览器启动器。
 - PLAY_GAME.cmd：Windows 双击入口。

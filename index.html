@@ -9,22 +9,7 @@
     <!-- MEME_WAR_ASSET_PRELOAD_START -->
     <script>
 window.MEME_WAR_ASSET_URLS = {"unitsLow":"./assets/units-handdrawn-atlas-low.webp?v=8e63768933be81fd","effectsLow":"./assets/effects-paper-atlas-low.webp?v=3722a028118ffee6","mapTile":"./assets/artwork-v10/map-floor-tile-1024.webp?v=95f2f233ae90d5c3","unitsLowFallback":"./assets/units-handdrawn-atlas-low.png?v=20bbb982b237c7c6","effectsLowFallback":"./assets/effects-paper-atlas-low.png?v=1fab044b7e3cdcf1","mapTileFallback":"./assets/artwork-v10/map-floor-tile-1024.png?v=c19d1d1b1b216c1b","fileTextures":"./assets/runtime-file-textures.js?v=ab51ec382d4e76d0"};
-if (window.location.protocol !== 'file:') {
-  const preloadImages = () => {
-    for (const [key, priority] of [['unitsLow', 'high'], ['mapTile', 'high'], ['effectsLow', 'low']]) {
-      const link = document.createElement('link');
-      link.rel = 'preload';
-      link.as = 'image';
-      link.type = window.MEME_WAR_ASSET_URLS[key].includes('.webp') ? 'image/webp' : 'image/png';
-      link.href = window.MEME_WAR_ASSET_URLS[key];
-      link.fetchPriority = priority;
-      document.head.appendChild(link);
-    }
-  };
-  // 先下载并解析菜单 HTML，避免低带宽下图片预载反过来拖慢菜单出现。
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', preloadImages, { once: true });
-  else preloadImages();
-}
+// 图片统一由运行时在音效预载完成后请求，头部不得提前抢跑。
 </script>
     <!-- MEME_WAR_ASSET_PRELOAD_END -->
     <!-- MEME_WAR_STATIC_STYLE_START -->
@@ -1370,7 +1355,7 @@ html, body {
 .menu-battle-scene {
   position: absolute; inset: 0; min-width: 0; min-height: 0; overflow: hidden; isolation: isolate;
   border: 0; border-radius: 0; background-color: #d6dfd4;
-  background-image: linear-gradient(180deg, rgba(249, 245, 223, .14) 0 58%, rgba(188, 195, 163, .32) 58% 60%, rgba(194, 174, 135, .4) 60%), url("./assets/artwork-v10/map-floor-tile-1024.png");
+  background-image: linear-gradient(180deg, rgba(249, 245, 223, .14) 0 58%, rgba(188, 195, 163, .32) 58% 60%, rgba(194, 174, 135, .4) 60%), var(--menu-map-texture, none);
   background-repeat: no-repeat, repeat; background-size: auto, 640px 640px; background-position: center, top left;
 }
 .menu-battle-scene::before, .menu-battle-scene::after {
@@ -7840,38 +7825,69 @@ class TinyAudio {
     this.preloadedFileAudio = new Map();
     this.preloadQueue = [];
     this.preloadQueued = new Set();
-    this.usedFilePaths = new Set();
     this.preloadActive = 0;
+    this.preloadWaiters = [];
+    this.fileBuffers = new Map();
+    this.fileBufferLoads = new Map();
+    this.fileLoadFailures = new Map();
+    this.activeBufferNodes = new Set();
+    this.playbackGeneration = 0;
+    this.playbackRate = 1;
+    this.lastAudioWarningAt = new Map();
+  }
+
+  warnAudioFailure(source, error) {
+    const now = Date.now();
+    if (now - (this.lastAudioWarningAt.get(source) ?? -Infinity) < 5000) return;
+    this.lastAudioWarningAt.set(source, now);
+    console.warn('音效暂时不可用', source, error?.message || String(error));
+  }
+
+  ensureContext() {
+    try {
+      if (!this.context || this.context.state === 'closed') {
+        const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+        if (!AudioContextClass) return null;
+        this.context = new AudioContextClass();
+        this.masterGain = null;
+      }
+      if (!this.masterGain) {
+        this.masterGain = this.context.createGain();
+        this.masterGain.gain.value = this.enabled ? this.volume : 0;
+        this.masterGain.connect(this.context.destination);
+      }
+      return this.context;
+    } catch (error) {
+      this.warnAudioFailure('AudioContext', error);
+      this.context = null;
+      this.masterGain = null;
+      return null;
+    }
   }
 
   unlock() {
     this.userGesture = true;
     if (!this.enabled || this.volume <= 0) return;
+    const context = this.ensureContext();
+    if (!context || context.state === 'running') return;
     try {
-      if (!this.context) {
-        const AudioContextClass = window.AudioContext || window.webkitAudioContext;
-        if (!AudioContextClass) {
-          this.enabled = false;
-          return;
-        }
-        this.context = new AudioContextClass();
-      }
-      if (!this.masterGain) {
-        this.masterGain = this.context.createGain();
-        this.masterGain.gain.value = this.volume;
-        this.masterGain.connect(this.context.destination);
-      }
-      if (this.context.state === 'suspended') this.context.resume().catch(() => {});
+      const resumed = context.resume();
+      resumed?.catch((error) => this.warnAudioFailure('恢复音频', error));
     } catch (error) {
-      this.enabled = false;
-      this.context = null;
+      this.warnAudioFailure('恢复音频', error);
     }
+  }
+
+  canUseBufferAudio() {
+    if (window.location?.protocol === 'file:' || typeof fetch !== 'function') return false;
+    const context = this.ensureContext();
+    return Boolean(context?.decodeAudioData && context?.createBufferSource);
   }
 
   setVolume(value) {
     this.volume = clampAudioVolume(value);
     if (this.masterGain && this.context) {
-      this.masterGain.gain.setTargetAtTime(this.volume, this.context.currentTime, 0.018);
+      this.masterGain.gain.setTargetAtTime(this.enabled ? this.volume : 0, this.context.currentTime, 0.018);
     }
     for (const [audio, gain] of this.activeFileAudioGains) {
       audio.volume = this.enabled ? clampAudioVolume(this.volume * gain) : 0;
@@ -7882,31 +7898,106 @@ class TinyAudio {
 
   setEnabled(enabled) {
     this.enabled = Boolean(enabled);
+    if (this.masterGain && this.context) {
+      this.masterGain.gain.setTargetAtTime(this.enabled ? this.volume : 0, this.context.currentTime, 0.018);
+    }
     for (const [audio, gain] of this.activeFileAudioGains) {
       audio.volume = this.enabled ? clampAudioVolume(this.volume * gain) : 0;
     }
     this.pumpFilePreloads();
   }
 
+  setPlaybackRate(value) {
+    const next = Number(value);
+    if (!Number.isFinite(next) || next <= 0) return;
+    const rate = clamp(next, 0.2, 4);
+    if (rate === this.playbackRate) return;
+    this.playbackRate = rate;
+    for (const { source } of this.activeBufferNodes) {
+      try { source.playbackRate.setValueAtTime(rate, source.context.currentTime); }
+      catch (error) { this.warnAudioFailure('播放倍率', error); }
+    }
+    for (const audio of this.activeFileAudioGains.keys()) {
+      try { audio.playbackRate = rate; } catch (error) { this.warnAudioFailure('播放倍率', error); }
+    }
+  }
+
+  loadFileBuffer(source) {
+    if (this.fileBuffers.has(source)) return Promise.resolve(this.fileBuffers.get(source));
+    if (this.fileBufferLoads.has(source)) return this.fileBufferLoads.get(source);
+    if (Date.now() - (this.fileLoadFailures.get(source) ?? -Infinity) < 3000) {
+      return Promise.reject(new Error('等待下一次音效加载重试'));
+    }
+    const context = this.ensureContext();
+    if (!context?.decodeAudioData) return Promise.reject(new Error('浏览器不支持音频解码'));
+    const controller = typeof AbortController === 'function' ? new AbortController() : null;
+    let timer;
+    const timeout = new Promise((resolve, reject) => {
+      timer = window.setTimeout(() => {
+        controller?.abort();
+        reject(new Error('音效下载或解码超时'));
+      }, 15000);
+    });
+    const download = async () => {
+      const response = await fetch(source, { signal: controller?.signal });
+      if (!response.ok) throw new Error(`音效请求失败：HTTP ${response.status}`);
+      const bytes = await response.arrayBuffer();
+      return new Promise((resolve, reject) => {
+        // 同时兼容 Android WebView 的回调形式和现代浏览器的 Promise 形式。
+        const decoding = context.decodeAudioData(bytes, resolve, reject);
+        decoding?.then(resolve, reject);
+      });
+    };
+    const task = Promise.race([download(), timeout]).then((buffer) => {
+      this.fileBuffers.set(source, buffer);
+      this.fileLoadFailures.delete(source);
+      return buffer;
+    }).catch((error) => {
+      this.fileLoadFailures.set(source, Date.now());
+      this.warnAudioFailure(source, error);
+      throw error;
+    }).finally(() => {
+      window.clearTimeout(timer);
+      if (this.fileBufferLoads.get(source) === task) this.fileBufferLoads.delete(source);
+    });
+    this.fileBufferLoads.set(source, task);
+    return task;
+  }
+
   preloadFiles(files) {
-    if (typeof Audio !== 'function') return;
+    if (!this.canUseBufferAudio() && typeof Audio !== 'function') return Promise.resolve();
     for (const path of files ?? []) {
       const source = String(path ?? '').trim();
-      if (!source || this.preloadQueued.has(source) || this.usedFilePaths.has(source)) continue;
+      if (!source || this.preloadQueued.has(source) || this.fileBuffers.has(source) || this.preloadedFileAudio.has(source)) continue;
       this.preloadQueued.add(source);
       this.preloadQueue.push(source);
     }
+    const ready = new Promise((resolve) => this.preloadWaiters.push(resolve));
     this.pumpFilePreloads();
+    return ready;
   }
 
   pumpFilePreloads() {
-    // 图片完成后后台预载，最多两个请求同时进行；预载不会播放声音。
-    while (this.enabled && this.volume > 0 && this.preloadActive < 2 && this.preloadQueue.length) {
+    // 音效在图片前静默下载；两路并发，并且下载完一次即可跨关复用解码缓存。
+    while (this.preloadActive < 2 && this.preloadQueue.length) {
       const source = this.preloadQueue.shift();
-      if (this.usedFilePaths.has(source)) continue;
-      let audio;
-      try { audio = new Audio(); } catch { continue; }
       this.preloadActive += 1;
+      const task = this.canUseBufferAudio() ? this.loadFileBuffer(source) : this.preloadMediaFile(source);
+      Promise.resolve(task).catch(() => {}).finally(() => {
+        this.preloadActive -= 1;
+        this.preloadQueued.delete(source);
+        this.pumpFilePreloads();
+      });
+    }
+    if (!this.preloadActive && !this.preloadQueue.length) {
+      for (const resolve of this.preloadWaiters.splice(0)) resolve();
+    }
+  }
+
+  preloadMediaFile(source) {
+    return new Promise((resolve) => {
+      let audio;
+      try { audio = new Audio(); } catch (error) { this.warnAudioFailure(source, error); resolve(); return; }
       this.preloadedFileAudio.set(source, audio);
       let finished = false;
       let timer;
@@ -7918,11 +8009,10 @@ class TinyAudio {
         audio.removeEventListener('error', onError);
         if (failed && this.preloadedFileAudio.get(source) === audio) {
           this.preloadedFileAudio.delete(source);
-          audio.removeAttribute('src');
-          audio.load();
+          this.releaseMediaFile(audio);
         }
-        this.preloadActive -= 1;
-        this.pumpFilePreloads();
+        if (failed) this.warnAudioFailure(source, new Error('媒体音效预载失败'));
+        resolve();
       };
       const onReady = () => finish();
       const onError = () => finish(true);
@@ -7933,18 +8023,35 @@ class TinyAudio {
       audio.volume = 0;
       audio.src = source;
       try { audio.load(); } catch { finish(true); }
-    }
+    });
+  }
+
+  releaseMediaFile(audio) {
+    try {
+      audio.pause();
+      audio.removeAttribute('src');
+      audio.load();
+    } catch { /* 清理被浏览器拒绝的媒体实例，不改变玩家的静音设置。 */ }
   }
 
   stopAll() {
+    // 下载可继续用于下一关，但此前请求的播放回调不能越过关卡边界。
+    this.playbackGeneration += 1;
+    this.fileLoadFailures.clear();
     for (const audio of this.activeFileAudioGains.keys()) {
       try { audio.pause(); audio.currentTime = 0; } catch { /* 已结束或尚未解码的音效也要移出本关。 */ }
+      this.releaseMediaFile(audio);
     }
     this.activeFileAudioGains.clear();
+    for (const { source, gain } of this.activeBufferNodes) {
+      source.onended = null;
+      try { source.stop(); } catch { /* 已自然结束。 */ }
+      try { source.disconnect(); gain.disconnect(); } catch { /* 继续清理其他声音。 */ }
+    }
+    this.activeBufferNodes.clear();
     for (const { oscillator, gain } of this.activeToneNodes) {
       try { oscillator.stop(); } catch { /* 可能已经自然结束。 */ }
-      oscillator.disconnect();
-      gain.disconnect();
+      try { oscillator.disconnect(); gain.disconnect(); } catch { /* 继续清理其他声音。 */ }
     }
     this.activeToneNodes.clear();
     this.lastToneAt.clear();
@@ -7955,10 +8062,19 @@ class TinyAudio {
     if (!this.userGesture || !this.enabled || this.volume <= 0) return;
     this.unlock();
     if (!this.context) return;
+    frequency *= this.playbackRate;
+    duration /= this.playbackRate;
+    let oscillator;
+    let gain;
+    let nodes;
+    const cleanup = () => {
+      this.activeToneNodes.delete(nodes);
+      try { oscillator?.disconnect(); gain?.disconnect(); } catch { /* 上下文可能被系统中断。 */ }
+    };
     try {
       const now = this.context.currentTime;
-      const oscillator = this.context.createOscillator();
-      const gain = this.context.createGain();
+      oscillator = this.context.createOscillator();
+      gain = this.context.createGain();
       oscillator.type = type;
       oscillator.frequency.setValueAtTime(frequency, now);
       oscillator.frequency.exponentialRampToValueAtTime(Math.max(80, frequency * 0.72), now + duration);
@@ -7966,42 +8082,92 @@ class TinyAudio {
       gain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
       oscillator.connect(gain);
       gain.connect(this.masterGain ?? this.context.destination);
-      const nodes = { oscillator, gain };
+      nodes = { oscillator, gain };
       this.activeToneNodes.add(nodes);
-      oscillator.onended = () => {
-        this.activeToneNodes.delete(nodes);
-        oscillator.disconnect();
-        gain.disconnect();
-      };
+      oscillator.onended = cleanup;
       oscillator.start(now);
       oscillator.stop(now + duration + 0.02);
     } catch (error) {
-      this.enabled = false;
-      this.context = null;
+      try { oscillator?.stop(); } catch { /* 尚未启动或已经结束。 */ }
+      cleanup();
+      this.warnAudioFailure('提示音', error);
+    }
+  }
+
+  playBuffer(buffer, clipGain) {
+    const context = this.ensureContext();
+    if (!context) return false;
+    let source;
+    let gain;
+    let nodes;
+    const cleanup = () => {
+      this.activeBufferNodes.delete(nodes);
+      try { source?.disconnect(); gain?.disconnect(); } catch { /* 上下文可能被系统中断。 */ }
+    };
+    try {
+      source = context.createBufferSource();
+      gain = context.createGain();
+      nodes = { source, gain };
+      source.buffer = buffer;
+      source.playbackRate.setValueAtTime(this.playbackRate, context.currentTime);
+      gain.gain.value = clipGain;
+      source.connect(gain);
+      gain.connect(this.masterGain);
+      source.onended = cleanup;
+      this.activeBufferNodes.add(nodes);
+      source.start();
+      return true;
+    } catch (error) {
+      cleanup();
+      this.warnAudioFailure('播放音效', error);
+      return false;
     }
   }
 
   playFile(path, gain = 0.5) {
     const source = String(path ?? '').trim();
-    if (!source || !this.userGesture || !this.enabled || this.volume <= 0 || typeof Audio !== 'function') return false;
+    if (!source || !this.userGesture || !this.enabled || this.volume <= 0) return false;
     this.unlock();
-    let audio;
     const clipGain = clampAudioVolume(gain);
+    if (this.canUseBufferAudio()) {
+      if (this.fileBuffers.has(source)) return this.playBuffer(this.fileBuffers.get(source), clipGain);
+      const generation = this.playbackGeneration;
+      this.loadFileBuffer(source).then((buffer) => {
+        if (generation !== this.playbackGeneration || !this.enabled || this.volume <= 0) return;
+        this.playBuffer(buffer, clipGain);
+      }).catch(() => {});
+      return true;
+    }
+    if (typeof Audio !== 'function') return false;
+    let audio;
     try {
       audio = this.preloadedFileAudio.get(source) ?? new Audio(source);
       this.preloadedFileAudio.delete(source);
-      this.usedFilePaths.add(source);
       audio.preload = 'auto';
+      audio.playbackRate = this.playbackRate;
       audio.volume = this.enabled ? clampAudioVolume(this.volume * clipGain) : 0;
       this.activeFileAudioGains.set(audio, clipGain);
-      const cleanup = () => this.activeFileAudioGains.delete(audio);
-      audio.addEventListener('ended', cleanup, { once: true });
-      audio.addEventListener('error', cleanup, { once: true });
+      const generation = this.playbackGeneration;
+      const cleanup = (failed = false) => {
+        audio.removeEventListener('ended', onEnded);
+        audio.removeEventListener('error', onError);
+        if (!this.activeFileAudioGains.delete(audio)) return;
+        if (!failed && generation === this.playbackGeneration && !this.preloadedFileAudio.has(source)) {
+          audio.pause();
+          audio.currentTime = 0;
+          this.preloadedFileAudio.set(source, audio);
+        } else this.releaseMediaFile(audio);
+      };
+      const onEnded = () => cleanup();
+      const onError = () => { this.warnAudioFailure(source, audio.error || new Error('媒体播放失败')); cleanup(true); };
+      audio.addEventListener('ended', onEnded, { once: true });
+      audio.addEventListener('error', onError, { once: true });
       const playback = audio.play();
-      if (playback && typeof playback.catch === 'function') playback.catch(cleanup);
+      playback?.catch((error) => { this.warnAudioFailure(source, error); cleanup(true); });
       return true;
-    } catch {
-      if (audio) this.activeFileAudioGains.delete(audio);
+    } catch (error) {
+      if (audio) { this.activeFileAudioGains.delete(audio); this.releaseMediaFile(audio); }
+      this.warnAudioFailure(source, error);
       return false;
     }
   }
@@ -8044,8 +8210,8 @@ class TinyAudio {
     const now = Number.isFinite(this.context?.currentTime)
       ? this.context.currentTime
       : (globalThis.performance?.now?.() ?? Date.now()) / 1000;
-    if (['hit', 'combat'].includes(tone) && now - this.lastCommonCombatAt < 0.085) return false;
-    if (now - (this.lastToneAt.get(tone) ?? -Infinity) < (cooldowns[tone] ?? 0.12)) return false;
+    if (['hit', 'combat'].includes(tone) && now - this.lastCommonCombatAt < 0.085 / this.playbackRate) return false;
+    if (now - (this.lastToneAt.get(tone) ?? -Infinity) < (cooldowns[tone] ?? 0.12) / this.playbackRate) return false;
     this.lastToneAt.set(tone, now);
     if (['hit', 'combat'].includes(tone)) this.lastCommonCombatAt = now;
     const [frequency, duration, type, volume] = sounds[tone] ?? sounds.info;
@@ -8274,7 +8440,7 @@ class MemeWarApp {
     this.showStartMenu();
     window.requestAnimationFrame((time) => {
       this.frame(time);
-      // 先绘制菜单与占位，再在下一帧后台装填图片。
+      // 先绘制菜单，再按音效、角色、特效、地图的顺序装填资源。
       window.requestAnimationFrame(() => this.scheduleProgressiveAssets());
     });
   }
@@ -8289,18 +8455,19 @@ class MemeWarApp {
     };
     const loadTextureStage = async (stage) => {
       if (!this.renderer) return;
+      await this.preloadUnitAudio();
       stage = await resolveTextureStage(stage);
-      const unitTask = loadWithFallback((url) => this.renderer.loadTexture(url), stage.unit, stage.unitFallback).then((url) => {
+      const unitResults = await Promise.allSettled([loadWithFallback((url) => this.renderer.loadTexture(url), stage.unit, stage.unitFallback).then((url) => {
         this.unitTextureUrl = url;
         this.applyUnitGlyphTextures();
         this.render();
-      });
-      const effectTask = stage.effect
-        ? loadWithFallback((url) => this.renderer.loadEffectTexture(url), stage.effect, stage.effectFallback).then(() => {
+      })]);
+      const effectResults = stage.effect
+        ? await Promise.allSettled([loadWithFallback((url) => this.renderer.loadEffectTexture(url), stage.effect, stage.effectFallback).then(() => {
           this.render();
-        })
-        : Promise.resolve();
-      const backgroundTask = this.renderer.backgroundReady && this.backgroundTextureUrl === stage.background
+        })])
+        : [];
+      const backgroundResults = await Promise.allSettled([this.renderer.backgroundReady && this.backgroundTextureUrl === stage.background
         ? Promise.resolve().then(() => {
           this.renderer.setQuality(stage.tier);
           this.syncRendererDiagnostics();
@@ -8308,15 +8475,15 @@ class MemeWarApp {
         })
         : loadWithFallback((url) => this.renderer.loadBackgroundTexture(url), stage.background, stage.backgroundFallback).then((url) => {
           this.backgroundTextureUrl = url;
-          // 地图成功后立刻提升画布 backing 分辨率；不等待较大的角色图集拖慢战场清晰化。
+          document.documentElement.style.setProperty('--menu-map-texture', `url("${url}")`);
+          // 地图最后载入，再同步画布的 backing 分辨率。
           this.renderer.setQuality(stage.tier);
           this.syncRendererDiagnostics();
           this.render();
-        });
-      const textureResults = await Promise.allSettled([unitTask, effectTask, backgroundTask]);
+        })]);
+      const textureResults = [...unitResults, ...effectResults, ...backgroundResults];
       this.syncRendererDiagnostics();
       this.render();
-      this.preloadUnitAudio();
       const failures = textureResults.filter((result) => result.status === 'rejected');
       if (failures.length) throw new Error(failures.map((result) => result.reason?.message || String(result.reason)).join('；'));
       return textureResults;
@@ -8330,11 +8497,12 @@ class MemeWarApp {
   }
 
   preloadUnitAudio() {
-    if (!this.audio?.preloadFiles) return;
+    if (!this.audio?.preloadFiles) return Promise.resolve();
     const selection = (this.units ?? []).filter((unit) => !unit.enemyOnly).map((unit) => unit.placementSound).filter(Boolean);
-    this.audio.preloadFiles([
+    return this.audio.preloadFiles([
       ...(AUDIO_ASSETS.hurt ?? []), ...(AUDIO_ASSETS.death ?? []), ...selection.slice(0, 4),
       ...(AUDIO_ASSETS.melee ?? []), ...(AUDIO_ASSETS.bloom ?? []), ...selection.slice(4),
+      ...(AUDIO_ASSETS.selection ?? []),
     ]);
   }
 
@@ -8908,7 +9076,7 @@ class MemeWarApp {
       glyph.style.backgroundImage = this.unitTextureUrl ? `url("${this.unitTextureUrl}")` : 'none';
     }
     for (const sprite of this.elements.startMenuOverlay?.querySelectorAll('.menu-fighter-sprite') ?? []) {
-      sprite.style.backgroundImage = `url("${this.unitTextureUrl || UNIT_TEXTURE_BLUR_URL}")`;
+      sprite.style.backgroundImage = this.unitTextureUrl ? `url("${this.unitTextureUrl}")` : 'none';
     }
   }
 
@@ -9050,7 +9218,13 @@ class MemeWarApp {
       this.elements.app.classList.remove('is-dragging-deployment');
       this.updateDragDropUi();
     });
-    window.addEventListener('pointerdown', () => this.audio.unlock(), { once: true });
+    // 安卓在切后台或拒绝首次播放后仍需在下一次真实交互中恢复上下文。
+    for (const type of ['pointerdown', 'pointerup', 'click', 'keydown']) {
+      window.addEventListener(type, () => this.audio.unlock(), { capture: true, passive: true });
+    }
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden && this.audio.userGesture) this.audio.unlock();
+    });
   }
 
   resetLevel(index = this.levelIndex, { preserveLayout = false } = {}) {
@@ -9060,6 +9234,9 @@ class MemeWarApp {
       return false;
     }
     this.audio.stopAll();
+    this.slowInput = false;
+    this.audio.setPlaybackRate(this.speed);
+    this.preloadUnitAudio();
     this.stopDeploymentRepeat();
     this.finishEraseGesture(false);
     this.levelIndex = index;
@@ -9260,6 +9437,7 @@ class MemeWarApp {
   setSpeed(speed) {
     if (!SIMULATION_SPEEDS.includes(speed)) return;
     this.speed = speed;
+    this.audio.setPlaybackRate(this.slowInput && this.phase === 'battle' ? 0.2 : speed);
     for (const button of document.querySelectorAll('.speed-button')) {
       button.classList.toggle('active', Number(button.dataset.speed) === speed);
     }
@@ -10604,6 +10782,7 @@ class MemeWarApp {
     const elapsed = this.lastFrameTime ? Math.min(0.05, (now - this.lastFrameTime) / 1000) : 0;
     this.lastFrameTime = now;
     this.renderTime += elapsed;
+    this.audio.setPlaybackRate(this.slowInput && this.phase === 'battle' ? 0.2 : this.speed);
     if (this.phase === 'battle' && this.simulation && !this.paused) {
       const timeScale = this.slowInput ? 0.2 : this.speed;
       this.simulation.update(elapsed * timeScale);
