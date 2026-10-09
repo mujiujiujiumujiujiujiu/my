@@ -1650,6 +1650,78 @@ html.is-auto-landscape #presentationOverlay:not(.presentation-over-menu) {
 }
 html.is-auto-landscape .presentation-select-option { align-items: center; flex-direction: row; }
 html.is-auto-landscape .presentation-select-option select { width: auto; }
+
+/* 部署卡片：图片铺满正面；两面共用固定尺寸，选中仅显示定位与核心参数。 */
+#app #unitList .unit-card[data-unit-id] {
+  display: block; flex: 0 0 auto; height: 92px; min-height: 0; padding: 0;
+  text-align: left; touch-action: pan-y; perspective: 900px;
+}
+#app #unitList .unit-card.disabled.selected { opacity: 1; filter: none; }
+#app #unitList .unit-card.selected {
+  background-color: #edf0e5;
+  background-image: var(--paper-grid), linear-gradient(145deg, #fffbed, #dfe8e6);
+}
+#app #unitList .unit-card:focus-visible { outline: 3px solid #526b91; outline-offset: 2px; }
+.unit-card-turn {
+  position: relative; width: 100%; height: 100%; transform-style: preserve-3d;
+  transition: transform .34s cubic-bezier(.2, .7, .25, 1);
+}
+.unit-card.selected .unit-card-turn { transform: rotateY(180deg); }
+.unit-card-face {
+  position: absolute; inset: 0; width: 100%; height: 100%; padding: 7px;
+  backface-visibility: hidden; -webkit-backface-visibility: hidden;
+}
+.unit-card-front { overflow: hidden; border-radius: inherit; }
+.unit-card-back { display: flex; flex-direction: column; justify-content: center; gap: 8px; transform: rotateY(180deg); }
+.unit-card-front .unit-portrait {
+  position: absolute; inset: 0; overflow: hidden;
+}
+#app #unitList .unit-card .unit-glyph {
+  position: absolute; top: 0; left: 0; display: grid; place-items: center;
+  width: 100%; height: auto; aspect-ratio: 1; flex: none;
+  border: 0; border-radius: 0; background-color: transparent; box-shadow: none;
+  color: var(--ink); font-size: 38px; background-repeat: no-repeat;
+  transform: translateY(-12%);
+}
+#app #unitList .unit-portrait-vehicle .unit-glyph { top: 50%; transform: translateY(-50%) scale(.68); }
+#app #unitList .unit-card .unit-name {
+  position: absolute; top: 5px; left: 6px; right: 6px;
+  margin: 0; color: var(--ink); font-size: 14px; font-weight: 900; line-height: 1.2;
+  text-shadow: 0 0 3px #fffbed, 1px 1px 0 #fffbed; overflow-wrap: anywhere;
+}
+#app #unitList .unit-card .unit-price {
+  position: absolute; right: 6px; bottom: 5px;
+  color: #875812; font-size: 13px; font-weight: 900; line-height: 1.2;
+  text-shadow: 0 0 3px #fffbed, 1px 1px 0 #fffbed;
+}
+#app #unitList .unit-card .unit-role {
+  margin: 0; color: #4f6073; font-size: 12px; line-height: 1.3; overflow-wrap: anywhere;
+}
+#app #unitList .unit-card .unit-stats {
+  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px;
+  margin: 0; padding: 0; border: 0;
+  color: var(--ink); font-size: 14px; line-height: 1.2;
+}
+.unit-stat { display: flex; flex-direction: column; gap: 3px; }
+.unit-stat small { color: #536276; font-family: "Microsoft YaHei", sans-serif; font-size: 11px; }
+#app #unitList .unit-stats b { color: var(--ink); }
+#app.menu-motion-reduced .unit-card-turn { transition: none; }
+@media (prefers-reduced-motion: reduce) { .unit-card-turn { transition: none; } }
+@media (max-width: 900px) and (orientation: landscape), (max-width: 600px) and (orientation: portrait) {
+  #app #unitList .unit-card[data-unit-id] { height: 82px; }
+  .unit-card-face { padding: 5px; }
+  .unit-card-back { gap: 6px; }
+  #app #unitList .unit-card .unit-name { top: 4px; left: 4px; right: 4px; font-size: 11px; }
+  #app #unitList .unit-card .unit-price { right: 4px; bottom: 4px; font-size: 10px; }
+  #app #unitList .unit-card .unit-role { font-size: 10px; }
+  #app #unitList .unit-card .unit-stats { font-size: 11px; gap: 2px; }
+  #app #unitList .unit-card .unit-glyph { transform: none; }
+  #app #unitList .unit-portrait-vehicle .unit-glyph { top: 0; transform: none; }
+  .unit-stat small { font-size: 9px; }
+}
+@media (max-width: 780px) and (orientation: portrait) {
+  #app:not(.is-auto-landscape) { height: 100dvh; min-height: 0; }
+}
 </style>
     <!-- MEME_WAR_STATIC_STYLE_END -->
   </head>
@@ -1848,7 +1920,7 @@ html.is-auto-landscape .presentation-select-option select { width: auto; }
       <div id="loading" class="loading-screen"><div class="loader-ring"></div><span>正在启动轻量战场…</span></div>
     </div>
     <!-- MEME_WAR_EMBEDDED_DATA_START -->
-    <script>window.MEME_WAR_EMBEDDED_DATA = {"./data/units.json":{"units":[{"id":"huaqiang","name":"华强","price":500,"hp":320,"atk":29,"as":1.5,"spd":70,"moveMultiplier":1.02,"range":58,"radius":28,"role":"assassin","roleLabel":"近战刺客 · 切后排/怕控制","combatStyle":"melee","preferredDistance":78,"spriteIndex":0,"spriteFacing":"right","attackStyle":"knife","projectileStyle":"scooter","color":"#ff8b5c","accent":"#ffd166","effectSummary":"近战劈砍；切后排稳定但爆发收敛，仍怕控制","skills":[{"name":"瓜刀劈砍","type":"cone","cd":8.2,"damage":52,"radius":120,"stun":0.22,"knockback":40,"vfxStyle":"knife","behavior":{"module":"cone","trigger":"auto","target":"nearest_enemy","style":"knife","script":"模块=扇形攻击;类型=cone;触发=自动;目标=最近敌人;特效=瓜刀","enabled":true}},{"name":"电瓶车撤离","type":"transform","cd":30,"radius":90,"duration":0.9,"threshold":0.5,"vfxStyle":"scooter","speed":460,"behavior":{"module":"transform","trigger":"auto","target":"nearest_enemy","style":"scooter","script":"模块=形态切换;类型=transform;触发=自动;目标=最近敌人;特效=scooter","enabled":true}}],"basicAttack":{"enabled":true,"module":"melee","mode":"melee","trigger":"auto","target":"nearest_enemy","style":"knife","attackStyle":"knife","script":"模块=近战;触发=自动;目标=最近敌人;特效=瓜刀","name":"华强 · 普通攻击"},"placementSound":"audio/cut_这瓜保熟吗（原视频）.mp3"},{"id":"caixukun","name":"哥哥","price":400,"hp":280,"atk":21,"as":0.95,"spd":62,"moveMultiplier":0.86,"range":320,"radius":25,"role":"ranged","roleLabel":"远程连击 · 擅长点杀/怕突脸","combatStyle":"ranged","preferredDistance":250,"spriteIndex":1,"spriteFacing":"right","attackStyle":"basketball","projectileStyle":"basketball","color":"#7f8cff","accent":"#d7c5ff","comboRadius":260,"comboBackstep":0,"comboSlowDuration":0,"effectSummary":"篮球弹射；连击爆发高但启动慢、怕刺客","skills":[{"name":"铁山靠","type":"proximityKnockback","cd":8,"damage":16,"radius":190,"stun":0.75,"knockback":300,"vfxStyle":"knockback","behavior":{"module":"proximityKnockback","trigger":"auto","target":"nearest_enemy","style":"knockback","script":"模块=近身击退;类型=proximityKnockback;触发=自动;目标=最近敌人;特效=knockback","enabled":true}},{"name":"鸡你太美","type":"comboDive","cd":60,"damage":32,"radius":190,"stun":0.7,"knockback":130,"duration":8,"count":25,"delay":0.8,"vfxStyle":"rhythm","behavior":{"module":"comboDive","trigger":"auto","target":"nearest_enemy","style":"rhythm","script":"模块=连击跳入;类型=comboDive;触发=自动;目标=最近敌人;特效=rhythm","enabled":true}}],"basicAttack":{"enabled":true,"module":"projectile","mode":"projectile","trigger":"auto","target":"nearest_enemy","style":"basketball","projectileStyle":"basketball","bounce":2,"bounceRange":260,"bounceMultiplier":0.78,"script":"模块=投射物;触发=自动;目标=最近敌人;特效=篮球;弹射=2;弹射范围=260;弹射倍率=0.78","name":"哥哥 · 普通攻击"},"placementSound":"audio/cut_蔡 徐 坤 全 部 音 效.mp3"},{"id":"dayun","name":"大运","price":650,"hp":320,"atk":36,"as":0.6,"spd":60,"moveMultiplier":1.3,"range":62,"radius":35,"role":"tank","roleLabel":"短途冲锋坦克 · 破阵/怕控制","spriteIndex":2,"spriteFacing":"right","attackStyle":"ram","color":"#ed6a5a","accent":"#f6bd60","effectSummary":"短程冲锋撞散敌人；冲锋后有停顿，怕远程与控制","skills":[{"name":"大运撞击","type":"charge","cd":16,"damage":92,"stun":0.9,"knockback":260,"bonus":0.3,"vfxStyle":"heavy","speed":480,"travelDistance":720,"pathRadius":42,"wallStun":4,"behavior":{"module":"charge","trigger":"auto","target":"nearest_enemy","style":"heavy","script":"模块=冲锋;类型=charge;触发=自动;目标=最近敌人;特效=heavy","enabled":true}},{"name":"刹车不住","type":"slowPulse","cd":22,"radius":130,"slow":0.35,"slowDuration":4.5,"vfxStyle":"heavy","behavior":{"module":"slowPulse","trigger":"auto","target":"nearest_enemy","style":"heavy","script":"模块=减速脉冲;类型=slowPulse;触发=自动;目标=最近敌人;特效=heavy","enabled":true}}],"basicAttack":{"enabled":true,"module":"melee","mode":"melee","trigger":"auto","target":"nearest_enemy","style":"ram","attackStyle":"ram","script":"模块=近战;触发=自动;目标=最近敌人;特效=冲撞","name":"大运 · 普通攻击"},"placementSound":"audio/cut_人生啊能不能放过我这一次.mp3"},{"id":"gazi","name":"嘎子","price":300,"hp":430,"atk":52,"as":0.62,"spd":70,"moveMultiplier":0.84,"range":380,"radius":30,"role":"ranged","roleLabel":"全能射手 · 白酒增幅/怕突进","combatStyle":"ranged","preferredDistance":330,"spriteIndex":3,"spriteFacing":"right","attackStyle":"rifle","projectileStyle":"rifle","color":"#4ecdc4","accent":"#efff8f","effectSummary":"远程持续射击，低血喝白酒进入高攻速；输出全面但怕突进","skills":[{"name":"喝白酒","type":"drinkLiquor","cd":60,"damage":8,"duration":1.8,"bonus":1.4,"threshold":0.55,"vfxStyle":"liquor","behavior":{"module":"drinkLiquor","trigger":"auto","target":"nearest_enemy","style":"liquor","script":"模块=喝酒增益;类型=drinkLiquor;触发=自动;目标=最近敌人;特效=liquor","enabled":true}}],"basicAttack":{"enabled":true,"module":"projectile","mode":"projectile","trigger":"auto","target":"nearest_enemy","style":"rifle","projectileStyle":"rifle","script":"模块=投射物;触发=自动;目标=最近敌人;特效=枪械","name":"嘎子 · 普通攻击"},"placementSound":"audio/cut_我Chovy，你们拿货给我拿好的啊.mp3"},{"id":"dagou","name":"大狗","price":250,"hp":500,"atk":21,"as":1,"spd":70,"moveMultiplier":1.25,"range":58,"radius":30,"role":"tank","roleLabel":"嘲讽坦克 · 拆人海/怕风筝","spriteIndex":4,"spriteFacing":"right","attackStyle":"bark","color":"#d782ba","accent":"#ffcf70","effectSummary":"嘲讽并连续冲锋；短线拆人海但技能间隔长，怕远程与集火","skills":[{"name":"大狗大狗大狗","type":"taunt","cd":10.5,"radius":240,"duration":3.2,"vfxStyle":"bark","behavior":{"module":"taunt","trigger":"auto","target":"nearby_enemies","style":"bark","script":"模块=嘲讽;类型=taunt;触发=自动;目标=周围敌人;特效=狗叫","enabled":true}},{"name":"三段冲锋","type":"multiCharge","cd":14.5,"damage":47,"stun":0.6,"knockback":0,"count":3,"delay":0.14,"vfxStyle":"dogCharge","speed":420,"travelDistance":160,"pathRadius":50,"wallStun":0.5,"passThrough":true,"behavior":{"module":"multiCharge","trigger":"auto","target":"nearest_enemy","style":"dogCharge","script":"模块=连续冲锋;类型=multiCharge;触发=自动;目标=最近敌人;特效=dogCharge;穿透=是","passThrough":true,"enabled":true}}],"basicAttack":{"enabled":true,"module":"melee","mode":"melee","trigger":"auto","target":"nearest_enemy","style":"bark","attackStyle":"bark","script":"模块=近战;触发=自动;目标=最近敌人;特效=狗叫","name":"大狗 · 普通攻击"},"placementSound":"audio/dagou.mp3"},{"id":"niulai","name":"牛来","price":200,"hp":410,"atk":28,"as":0.85,"spd":78,"moveMultiplier":1.34,"range":58,"radius":22,"role":"assassin","roleLabel":"刺客续航 · 跳后排/自疗","spriteIndex":5,"spriteFacing":"right","attackStyle":"ram","color":"#8bd450","accent":"#f2e86d","effectSummary":"跳到最远目标并自疗；能切后排续航，但怕集中火力","skills":[{"name":"跳河","type":"jumpToFarthest","cd":12,"damage":2,"radius":105,"knockback":70,"vfxStyle":"river","behavior":{"module":"jumpToFarthest","trigger":"auto","target":"farthest_enemy","style":"river","script":"模块=跳到最远目标;类型=jumpToFarthest;触发=自动;目标=最远敌人;特效=river","enabled":true}},{"name":"妈妈","type":"fullHealSelf","cd":17.1,"amount":1,"vfxStyle":"heal","behavior":{"module":"fullHealSelf","trigger":"auto","target":"self","style":"heal","script":"模块=自身满血;类型=fullHealSelf;触发=自动;目标=自己;特效=heal","enabled":true}}],"basicAttack":{"enabled":true,"module":"melee","mode":"melee","trigger":"auto","target":"nearest_enemy","style":"ram","attackStyle":"ram","script":"模块=近战;触发=自动;目标=最近敌人;特效=冲撞","name":"牛来 · 普通攻击"},"placementSound":"audio/妈妈.mp3"},{"id":"maodie","name":"圆头耄耋","price":180,"hp":300,"atk":15,"as":1.5,"spd":55,"moveMultiplier":0.9,"range":50,"radius":26,"role":"support","roleLabel":"辅助控制 · 哈气单控群缓/怕集火","combatStyle":"support","preferredDistance":165,"spriteIndex":6,"spriteFacing":"right","attackStyle":"hiss","color":"#f4a261","accent":"#f1faee","effectSummary":"响尾蛇冲锋并用哈气延长眩晕；辅助控场强但怕集火","skills":[{"name":"哈气震住","type":"hissControl","cd":10,"radius":180,"stun":1.6,"slow":0.2,"slowDuration":2.8,"vfxStyle":"hiss","behavior":{"module":"hissControl","trigger":"auto","target":"nearby_enemies","style":"hiss","script":"模块=哈气控制;类型=hissControl;触发=自动;目标=周围敌人;特效=哈气","enabled":true}},{"name":"响尾蛇冲锋","type":"charge","cd":12,"damage":36,"stun":0.8,"knockback":90,"vfxStyle":"snake","speed":520,"travelDistance":660,"pathRadius":54,"wallStun":0.7,"behavior":{"module":"charge","trigger":"auto","target":"nearest_enemy","style":"snake","script":"模块=冲锋;类型=charge;触发=自动;目标=最近敌人;特效=响尾蛇","enabled":true}}],"basicAttack":{"enabled":true,"module":"melee","mode":"melee","trigger":"auto","target":"nearest_enemy","style":"hiss","attackStyle":"hiss","script":"模块=近战;触发=自动;目标=最近敌人;特效=哈气","name":"圆头耄耋 · 普通攻击"},"placementSound":"audio/cut_圆头耄耋原视频.mp3"},{"id":"miaocuijiao","name":"妙脆角猫","price":190,"hp":190,"atk":42,"as":1.1,"spd":90,"moveMultiplier":0.92,"range":320,"radius":20,"role":"ranged","roleLabel":"强力后排 · 蓄力导弹/怕近身","combatStyle":"ranged","preferredDistance":270,"spriteIndex":7,"spriteFacing":"right","attackStyle":"claw","projectileStyle":"doritos","color":"#ffca3a","accent":"#ff595e","targetPriority":"enemy_ranged","effectSummary":"保持后排距离并蓄力发射导弹；爆发高但被近身后只能仓促自保","skills":[{"name":"发射妙脆角导弹","type":"doritosMissile","cd":0.75,"damage":68,"radius":360,"count":3,"delay":0.9,"vfxStyle":"doritos","speed":760,"behavior":{"module":"doritosMissile","trigger":"auto","target":"nearest_enemy","style":"doritos","script":"模块=妙脆角导弹;类型=doritosMissile;触发=自动;目标=最近敌人;特效=妙脆角","enabled":true}},{"name":"装填妙脆角","type":"reloadDoritos","cd":6,"duration":2.1,"count":3,"vfxStyle":"doritos","behavior":{"module":"reloadDoritos","trigger":"auto","target":"nearest_enemy","style":"doritos","script":"模块=妙脆角装填;类型=reloadDoritos;触发=自动;目标=最近敌人;特效=妙脆角","enabled":true}}],"basicAttack":{"enabled":true,"module":"projectile","mode":"projectile","trigger":"auto","target":"nearest_enemy","style":"doritos","projectileStyle":"doritos","script":"模块=投射物;触发=自动;目标=最近敌人;特效=妙脆角","name":"妙脆角猫 · 普通攻击"},"placementSound":"audio/cut_妙脆角很不高兴为你服务.mp3"},{"id":"naima","name":"奶蛙","price":220,"hp":260,"atk":0,"as":0,"spd":58,"moveMultiplier":0.92,"range":180,"radius":22,"role":"healer","roleLabel":"召唤奶妈 · 骑士护卫/优先自救","combatStyle":"support","preferredDistance":220,"spriteIndex":8,"spriteFacing":"right","attackStyle":"heal","projectileStyle":"heal","color":"#90be6d","accent":"#f9c74f","effectSummary":"只召唤近战奶娃骑士并优先治疗自己；没有攻击能力，骑士怕远程AOE","skills":[{"name":"奶娃骑士召唤","type":"summon","cd":6,"duration":36,"count":1,"vfxStyle":"magic","summonUnitId":"naima_knight","behavior":{"module":"summon","trigger":"auto","target":"self","style":"magic","script":"模块=召唤;类型=summon;触发=自动;目标=自己;特效=magic;召唤物=naima_knight","summonUnitId":"naima_knight","enabled":true}},{"name":"单体奶泡","type":"heal","cd":7.6,"radius":120,"amount":82,"vfxStyle":"heal","behavior":{"module":"heal","trigger":"auto","target":"priority_ally","style":"heal","script":"模块=治疗;类型=heal;触发=自动;目标=优先受伤队友;特效=heal","enabled":true}}],"basicAttack":{"enabled":false,"module":"melee","mode":"melee","trigger":"auto","target":"self","style":"milkBubble","attackStyle":"milkBubble","script":"模块=近战;触发=自动;目标=自己;特效=奶泡","name":"奶蛙 · 普通攻击"},"placementSound":"audio/奶龙捧腹大笑原版.mp3"},{"id":"huangsedashu","name":"黄色袋鼠","price":140,"hp":250,"atk":13,"as":1.2,"spd":110,"moveMultiplier":0.94,"range":260,"radius":24,"role":"healer","roleLabel":"远程奶妈 · 续航收割/怕前排","combatStyle":"melee","preferredDistance":220,"spriteIndex":9,"spriteFacing":"right","attackStyle":"delivery","projectileStyle":"delivery","color":"#f4d35e","accent":"#ee964b","targetPriority":"lowest_hp","effectSummary":"远程优先低血目标，并为附近一名友军补血；打不动厚前排","skills":[{"name":"袋鼠奶泡","type":"allyHealProjectile","cd":9.5,"radius":36,"amount":55,"vfxStyle":"milkBubble","behavior":{"module":"allyHealProjectile","trigger":"auto","target":"injured_ally","style":"milkBubble","script":"模块=友军治疗投射物;类型=allyHealProjectile;触发=自动;目标=受伤友军;特效=奶泡","enabled":true}},{"name":"击杀回血","type":"onKillHeal","cd":0.1,"amount":60,"vfxStyle":"heal","behavior":{"module":"onKillHeal","trigger":"auto","target":"self","style":"heal","script":"模块=击杀回血;类型=onKillHeal;触发=自动;目标=自己;特效=heal","enabled":true}}],"basicAttack":{"enabled":true,"module":"projectile","mode":"projectile","trigger":"auto","target":"lowest_hp","style":"delivery","projectileStyle":"delivery","script":"模块=投射物;触发=自动;目标=最低血量;特效=delivery","name":"黄色袋鼠 · 普通攻击"},"placementSound":"audio/cut_你胆子真是肥嘟嘟的啊，纯享版，可拿去当素材.mp3"},{"id":"gugugaga","name":"咕咕嘎嘎","price":120,"hp":190,"atk":8,"as":1.9,"spd":60,"moveMultiplier":0.88,"range":190,"radius":20,"role":"support","roleLabel":"弱远程 · 单体眩晕/怕近身","combatStyle":"support","preferredDistance":155,"spriteIndex":10,"spriteFacing":"right","attackStyle":"penguin","projectileStyle":"penguin","color":"#577590","accent":"#f9c74f","effectSummary":"弱远程投射物，单体抽搐眩晕；控制明确但生命低","skills":[{"name":"一起抽搐","type":"convulse","cd":15,"damage":12,"radius":190,"stun":1.65,"duration":1.65,"vfxStyle":"convulse","behavior":{"module":"convulse","trigger":"auto","target":"nearest_enemy","style":"convulse","script":"模块=同步抽搐;类型=convulse;触发=自动;目标=最近敌人;特效=convulse","enabled":true}}],"basicAttack":{"enabled":true,"module":"projectile","mode":"projectile","trigger":"auto","target":"nearest_enemy","style":"penguin","projectileStyle":"penguin","script":"模块=投射物;触发=自动;目标=最近敌人;特效=企鹅","name":"咕咕嘎嘎 · 普通攻击"},"placementSound":"audio/cut_不行了咕咕嘎嘎太魔性上头了.mp3"},{"id":"daodun","name":"我的刀盾","price":90,"hp":300,"atk":10,"as":1.05,"spd":82,"moveMultiplier":1.08,"range":48,"radius":28,"role":"tank","roleLabel":"便宜肉盾 · 格挡护卫/怕持续伤害","combatStyle":"melee","preferredDistance":62,"spriteIndex":11,"spriteFacing":"right","attackStyle":"shield","color":"#8d99ae","accent":"#edf2f4","reflectDamage":0,"effectSummary":"举盾减伤并驻守；能护住阵线但输出低","skills":[{"name":"盾牌防御","type":"guard","cd":6,"duration":1.2,"vfxStyle":"shield","behavior":{"module":"guard","trigger":"auto","target":"self","style":"shield","script":"模块=举盾;类型=guard;触发=自动;目标=自己;特效=盾牌","enabled":true}}],"basicAttack":{"enabled":true,"module":"melee","mode":"melee","trigger":"auto","target":"nearest_enemy","style":"shield","attackStyle":"shield","script":"模块=近战;触发=自动;目标=最近敌人;特效=盾牌","name":"我的刀盾 · 普通攻击"},"placementSound":"audio/cut_【梗百科】我的刀盾和哔哔拉布是啥梗？.mp3"},{"id":"couqie","name":"凑企鹅","price":30,"hp":110,"atk":6,"as":2.1,"spd":88,"moveMultiplier":1.32,"range":34,"radius":18,"role":"swarm","roleLabel":"廉价人海 · 克单体/怕范围","combatStyle":"melee","spriteIndex":12,"spriteFacing":"right","attackStyle":"poke","color":"#457b9d","accent":"#a8dadc","effectSummary":"飞踢突进；数量取胜但单体脆弱","skills":[{"name":"飞踢","type":"flyingKick","cd":7,"damage":28,"radius":80,"stun":0.35,"knockback":85,"vfxStyle":"kick","travelDistance":300,"behavior":{"module":"flyingKick","trigger":"auto","target":"nearest_enemy","style":"kick","script":"模块=飞踢;类型=flyingKick;触发=自动;目标=最近敌人;特效=飞踢","enabled":true}}],"basicAttack":{"enabled":true,"module":"melee","mode":"melee","trigger":"auto","target":"nearest_enemy","style":"poke","attackStyle":"poke","script":"模块=近战;触发=自动;目标=最近敌人;特效=poke","name":"凑企鹅 · 普通攻击"},"placementSound":"audio/cut_：一个视频教会大家如何咕咕嘎嘎🐧.mp3"},{"id":"naima_knight","name":"奶娃骑士","price":0,"hp":300,"atk":20,"as":1.15,"spd":76,"moveMultiplier":1,"range":48,"radius":18,"role":"tank","roleLabel":"召唤物 · 近战护卫/怕远程AOE","combatStyle":"melee","preferredDistance":56,"spriteIndex":16,"spriteFacing":"right","attackStyle":"shield","projectileStyle":"shield","color":"#f3d6a1","accent":"#90be6d","targetPriority":"nearest_enemy","summonOnly":true,"effectSummary":"奶蛙召唤的近战骑士；贴身护卫但怕远程范围","skills":[],"basicAttack":{"enabled":true,"module":"melee","mode":"melee","trigger":"auto","target":"nearest_enemy","style":"shield","attackStyle":"shield","script":"模块=近战;触发=自动;目标=最近敌人;特效=盾牌","name":"奶娃骑士 · 普通攻击"}},{"id":"maodie_orange_cat","name":"小橘猫","price":0,"hp":85,"atk":12,"as":2.1,"spd":105,"moveMultiplier":1,"range":135,"radius":16,"role":"swarm","roleLabel":"召唤物 · 远程爪痕/怕AOE","combatStyle":"ranged","preferredDistance":130,"spriteIndex":6,"spriteFacing":"right","attackStyle":"claw","projectileStyle":"claw","color":"#f4a261","accent":"#f1faee","targetPriority":"nearest_enemy","summonOnly":true,"effectSummary":"低血远程爪痕；数量便宜但怕范围","skills":[],"basicAttack":{"enabled":true,"module":"projectile","mode":"projectile","trigger":"auto","target":"nearest_enemy","style":"claw","projectileStyle":"claw","script":"模块=投射物;触发=自动;目标=最近敌人;特效=爪痕","name":"小橘猫 · 普通攻击"}},{"id":"melonboss","name":"瓜摊老板","price":280,"hp":200,"atk":22,"as":0.9,"spd":62,"moveMultiplier":0.86,"range":260,"radius":27,"role":"ranged","roleLabel":"远程小范围AOE · 克人海/怕刺客","combatStyle":"ranged","preferredDistance":220,"spriteIndex":13,"spriteFacing":"right","attackStyle":"melon","projectileStyle":"watermelon","color":"#bd5d4a","accent":"#f7c873","effectSummary":"远程少量投瓜并爆炸减速；清人海强但怕切后排","skills":[{"name":"西瓜炸弹","type":"pulse","cd":5,"damage":120,"radius":130,"knockback":70,"slow":0.2,"slowDuration":3.2,"vfxStyle":"melon","behavior":{"module":"pulse","trigger":"auto","target":"nearest_enemy","style":"melon","script":"模块=脉冲;类型=pulse;触发=自动;目标=最近敌人;特效=西瓜","enabled":true}}],"basicAttack":{"enabled":true,"module":"projectile","mode":"projectile","trigger":"auto","target":"nearest_enemy","style":"watermelon","projectileStyle":"watermelon","script":"模块=投射物;触发=自动;目标=最近敌人;特效=西瓜弹","name":"瓜摊老板 · 普通攻击"},"placementSound":"audio/cut_这瓜保熟吗（原视频） (1).mp3"},{"id":"boss_guasheng","name":"邪恶大西瓜","price":0,"hp":1100,"atk":30,"as":0.85,"spd":52,"moveMultiplier":0.7,"range":280,"radius":42,"role":"enemy","roleLabel":"BOSS · 吐籽远程压制/怕突击","combatStyle":"ranged","preferredDistance":235,"spriteIndex":14,"spriteFacing":"right","attackStyle":"melon","projectileStyle":"seed","color":"#4f873c","accent":"#b8d764","enemyOnly":true,"effectSummary":"张嘴吐籽进行远程压制，并用藤蔓减速；近身后较脆弱","skills":[{"name":"籽雨喷射","type":"pulse","cd":10,"damage":52,"radius":145,"knockback":85,"slow":0.24,"slowDuration":3.4,"vfxStyle":"melon","behavior":{"module":"pulse","trigger":"auto","target":"nearest_enemy","style":"melon","script":"模块=脉冲;类型=pulse;触发=自动;目标=最近敌人;特效=西瓜","enabled":true}},{"name":"藤蔓缠绕","type":"slowPulse","cd":15,"radius":190,"slow":0.3,"slowDuration":4.6,"vfxStyle":"heavy","behavior":{"module":"slowPulse","trigger":"auto","target":"nearest_enemy","style":"heavy","script":"模块=减速脉冲;类型=slowPulse;触发=自动;目标=最近敌人;特效=heavy","enabled":true}}],"basicAttack":{"enabled":true,"module":"projectile","mode":"projectile","trigger":"auto","target":"nearest_enemy","style":"seed","projectileStyle":"seed","script":"模块=投射物;触发=自动;目标=最近敌人;特效=西瓜籽","name":"邪恶大西瓜 · 普通攻击"}},{"id":"boss_baijiu","name":"邪恶大篮球","price":0,"hp":1250,"atk":38,"as":0.78,"spd":58,"moveMultiplier":1.05,"range":72,"radius":44,"role":"enemy","roleLabel":"BOSS · 斜飞踹突击/怕风筝","combatStyle":"melee","preferredDistance":58,"spriteIndex":15,"spriteFacing":"right","attackStyle":"kick","color":"#e97824","accent":"#f3ad59","enemyOnly":true,"effectSummary":"斜向飞踹突进、制造篮板震荡并蓄力恢复；近身压迫强但怕远程风筝","skills":[{"name":"飞身斜踹","type":"charge","cd":14,"damage":110,"stun":1.1,"knockback":250,"vfxStyle":"kick","speed":460,"travelDistance":420,"pathRadius":54,"wallStun":8,"behavior":{"module":"charge","trigger":"auto","target":"nearest_enemy","style":"kick","script":"模块=冲锋;类型=charge;触发=自动;目标=最近敌人;特效=飞踢","enabled":true}},{"name":"篮板震荡","type":"slowPulse","cd":18,"radius":175,"slow":0.25,"slowDuration":4.2,"vfxStyle":"heavy","behavior":{"module":"slowPulse","trigger":"auto","target":"nearest_enemy","style":"heavy","script":"模块=减速脉冲;类型=slowPulse;触发=自动;目标=最近敌人;特效=heavy","enabled":true}},{"name":"蓄力回弹","type":"fullHealSelf","cd":22.8,"amount":0.16,"vfxStyle":"heal","behavior":{"module":"heal","trigger":"auto","target":"self","style":"heal","script":"模块=治疗;类型=fullHealSelf;触发=自动;目标=自己;特效=heal","enabled":true}}],"basicAttack":{"enabled":true,"module":"melee","mode":"melee","trigger":"auto","target":"nearest_enemy","style":"kick","attackStyle":"kick","script":"模块=近战;触发=自动;目标=最近敌人;特效=飞踢","name":"邪恶大篮球 · 普通攻击"}},{"id":"boss_mecha_melon","name":"机械瓜摊老板","price":0,"hp":980,"atk":38,"as":0.92,"spd":46,"moveMultiplier":0.76,"range":310,"radius":46,"role":"enemy","roleLabel":"机械BOSS · 爆炸压制/磁力控场","combatStyle":"ranged","preferredDistance":270,"spriteIndex":17,"spriteFacing":"right","attackStyle":"melon","projectileStyle":"watermelon","color":"#547b50","accent":"#f2d36b","enemyOnly":true,"effectSummary":"普攻小范围爆炸；生瓜投掷眩晕，磁场减速","skills":[{"name":"生瓜蛋子","type":"seedBomb","cd":8.5,"damage":58,"radius":118,"stun":1.25,"vfxStyle":"melon","speed":430,"behavior":{"module":"seedBomb","trigger":"auto","target":"nearest_enemy","style":"melon","script":"模块=生瓜投掷;类型=seedBomb;触发=自动;目标=最近敌人;特效=西瓜","enabled":true}},{"name":"磁力场","type":"slowPulse","cd":17,"radius":210,"slow":0.34,"slowDuration":3.8,"vfxStyle":"heavy","behavior":{"module":"slowPulse","trigger":"auto","target":"nearby_enemies","style":"heavy","script":"模块=减速脉冲;类型=slowPulse;触发=自动;目标=周围敌人;特效=heavy","enabled":true}}],"basicAttack":{"enabled":true,"module":"projectile","mode":"projectile","trigger":"auto","target":"nearest_enemy","style":"watermelon","projectileStyle":"watermelon","script":"模块=投射物;触发=自动;目标=最近敌人;特效=西瓜弹","name":"机械瓜摊老板 · 普通攻击","splashRadius":76,"projectileSpeed":470}},{"id":"boss_mecha_huaqiang","name":"机械华强","price":0,"hp":1160,"atk":46,"as":0.76,"spd":60,"moveMultiplier":0.94,"range":360,"radius":48,"role":"enemy","roleLabel":"机械BOSS · 枪击压制/直线冲锋","combatStyle":"ranged","preferredDistance":300,"spriteIndex":18,"spriteFacing":"right","attackStyle":"rifle","projectileStyle":"rifle","color":"#48535a","accent":"#f28b43","enemyOnly":true,"effectSummary":"枪械单点射击；榴弹锁定最远敌人，直线冲锋眩晕","skills":[{"name":"最远点榴弹","type":"farthestGrenade","cd":11,"damage":150,"radius":132,"vfxStyle":"heavy","speed":560,"behavior":{"module":"farthestGrenade","trigger":"auto","target":"farthest_enemy","style":"heavy","script":"模块=最远点榴弹;类型=farthestGrenade;触发=自动;目标=最远敌人;特效=heavy","enabled":true}},{"name":"穿阵冲锋","type":"charge","cd":16,"damage":84,"stun":1.1,"knockback":0,"vfxStyle":"heavy","speed":650,"travelDistance":2200,"pathRadius":58,"wallStun":0.75,"passThrough":true,"behavior":{"module":"charge","trigger":"auto","target":"nearest_enemy","style":"heavy","script":"模块=冲锋;类型=charge;触发=自动;目标=最近敌人;特效=heavy;穿透=是","passThrough":true,"enabled":true}}],"basicAttack":{"enabled":true,"module":"projectile","mode":"projectile","trigger":"auto","target":"nearest_enemy","style":"rifle","projectileStyle":"rifle","script":"模块=投射物;触发=自动;目标=最近敌人;特效=枪械","name":"机械华强 · 普通攻击","projectileSpeed":720}}]},"./data/levels.json":{"levels":[{"id":1,"name":"华强买瓜","subtitle":"教学 · 近战与廉价人海","budget":600,"tip":"贵的单位不一定最优。试试用一只嘎子稳住阵线，再让奶蛙续航。","deploymentClearancePx":2,"deploymentOverlapPercent":20,"enemies":[{"unitId":"melonboss","count":1,"instanceId":"l1-melonboss-editor-01","spawnX":1400,"spawnY":720},{"unitId":"melonboss","count":1,"instanceId":"l1-melonboss-editor-02","spawnX":1420,"spawnY":80}],"playerDeployZones":[{"id":"player-zone-1","points":[{"x":42,"y":42},{"x":42,"y":778},{"x":780,"y":778},{"x":772,"y":42}]}]},{"id":2,"name":"叮咚鸡","subtitle":"冲锋破阵 · 后排 AOE","budget":800,"tip":"大运可以把敌人撞散，蔡徐坤站在后排会更舒服。纯人海会被大狗的嘲讽和连续冲锋拖住。","deploymentClearancePx":2,"deploymentOverlapPercent":20,"enemies":[{"unitId":"dagou","count":1,"instanceId":"dagou-03","spawnX":1240,"spawnY":500,"overrides":{"hp":300,"atk":20}},{"unitId":"dagou","count":1,"instanceId":"dagou-04","spawnX":1240,"spawnY":300,"overrides":{"hp":300,"atk":20}},{"unitId":"dagou","count":1,"instanceId":"l2-dagou-editor-02","spawnX":1360,"spawnY":400}],"playerDeployZones":[{"id":"player-zone-1","points":[{"x":42,"y":42},{"x":798,"y":42},{"x":793,"y":778},{"x":42,"y":778}]}]},{"id":3,"name":"牛来票房","subtitle":"难度 1 · 人海与后排火力","budget":1000,"tip":"前排人海可以拖住牛来，后排哥哥负责稳定输出；只堆近战会被远程火力消耗。","deploymentClearancePx":2,"deploymentOverlapPercent":20,"enemies":[{"unitId":"niulai","count":1,"instanceId":"l3-niulai-editor-05","spawnX":1220,"spawnY":420},{"unitId":"niulai","count":1,"instanceId":"l3-niulai-editor-01","spawnX":1120,"spawnY":300},{"unitId":"niulai","count":1,"instanceId":"l3-niulai-editor-03","spawnX":1340,"spawnY":320},{"unitId":"niulai","count":1,"instanceId":"l3-niulai-editor-04","spawnX":1220,"spawnY":180}],"playerDeployZones":[{"id":"player-zone-1","points":[{"x":90,"y":120},{"x":760,"y":120},{"x":760,"y":610},{"x":90,"y":610}]}]},{"id":4,"name":"抽象乱斗","subtitle":"难度 2 · 混合编队与控制窗口","budget":1150,"tip":"大运顶在中路，咕咕嘎嘎负责控场；嘎子和奶蛙留在后排，别让远程抢到第一线。","deploymentClearancePx":2,"deploymentOverlapPercent":20,"enemies":[{"unitId":"niulai","count":1,"instanceId":"l4-niulai-editor-01","spawnX":1280,"spawnY":460},{"unitId":"niulai","count":1,"instanceId":"l4-niulai-editor-02","spawnX":1280,"spawnY":340},{"unitId":"couqie","count":1,"instanceId":"l4-couqie-01","spawnX":1040,"spawnY":250,"overrides":{"hp":100,"atk":5}},{"unitId":"couqie","count":1,"instanceId":"l4-couqie-02","spawnX":1040,"spawnY":570,"overrides":{"hp":100,"atk":5}},{"unitId":"gugugaga","count":1,"instanceId":"l4-gugugaga-01","spawnX":1160,"spawnY":280},{"unitId":"gugugaga","count":1,"instanceId":"l4-gugugaga-02","spawnX":1160,"spawnY":540},{"unitId":"naima","count":1,"instanceId":"l4-naima-editor-02","spawnX":1440,"spawnY":400},{"unitId":"melonboss","count":1,"instanceId":"l4-melonboss-editor-01","spawnX":1180,"spawnY":400}],"playerDeployZones":[{"id":"player-zone-1","points":[{"x":90,"y":120},{"x":760,"y":120},{"x":760,"y":610},{"x":90,"y":610}]}]},{"id":5,"name":"鸡你太美","subtitle":"难度 3 · 远程交叉火力","budget":1300,"tip":"大狗顶住第一线，刀盾护住中路；远程火力怕刺客切入，但厚前排会拖慢收割。","deploymentClearancePx":2,"deploymentOverlapPercent":20,"enemies":[{"unitId":"daodun","count":1,"instanceId":"l5-daodun-editor-01","spawnX":1040,"spawnY":540},{"unitId":"daodun","count":1,"instanceId":"l5-daodun-01","spawnX":1040,"spawnY":250,"overrides":{"hp":320}},{"unitId":"caixukun","count":1,"instanceId":"l5-caixukun-editor-02","spawnX":1480,"spawnY":320},{"unitId":"caixukun","count":1,"instanceId":"l5-caixukun-01","spawnX":1400,"spawnY":180,"overrides":{"hp":230,"atk":18}},{"unitId":"caixukun","count":1,"instanceId":"l5-caixukun-02","spawnX":1400,"spawnY":640,"overrides":{"hp":230,"atk":18}},{"unitId":"caixukun","count":1,"instanceId":"l5-caixukun-editor-03","spawnX":1480,"spawnY":520}],"playerDeployZones":[{"id":"player-zone-1","points":[{"x":90,"y":120},{"x":760,"y":120},{"x":760,"y":610},{"x":90,"y":610}]}]},{"id":6,"name":"第一道门","subtitle":"难度 4 · 冲锋、护盾与控制","budget":1450,"tip":"大运和大狗在前排接战，刀盾卡住侧翼；控制单位不能单独承伤，要让输出保持后排距离。","deploymentClearancePx":2,"deploymentOverlapPercent":20,"enemies":[{"unitId":"huaqiang","count":1,"instanceId":"l6-huaqiang-01","spawnX":100,"spawnY":60,"overrides":{"hp":320,"atk":32}},{"unitId":"huaqiang","count":1,"instanceId":"l6-huaqiang-editor-01","spawnX":120,"spawnY":720},{"unitId":"huaqiang","count":1,"instanceId":"l6-huaqiang-editor-02","spawnX":800,"spawnY":400},{"unitId":"huaqiang","count":1,"instanceId":"l6-huaqiang-editor-03","spawnX":1520,"spawnY":720},{"unitId":"huaqiang","count":1,"instanceId":"l6-huaqiang-editor-04","spawnX":1520,"spawnY":80}],"playerDeployZones":[{"id":"player-zone-1","points":[{"x":399,"y":239},{"x":1198,"y":232},{"x":1207,"y":562},{"x":397,"y":564}]}]},{"id":7,"name":"传送门失控","subtitle":"难度 5 · 切后排与控制链","budget":1600,"tip":"华强和牛来会打乱后排，咕咕嘎嘎负责打断；保持前中后三层，别让远程先吃到突进。","deploymentClearancePx":2,"deploymentOverlapPercent":20,"enemies":[{"unitId":"niulai","count":1,"instanceId":"l7-niulai-editor-01","spawnX":1100,"spawnY":180},{"unitId":"naima","count":1,"instanceId":"l7-naima-editor-01","spawnX":920,"spawnY":660},{"unitId":"caixukun","count":1,"instanceId":"l7-caixukun-editor-01","spawnX":1020,"spawnY":740},{"unitId":"naima","count":1,"instanceId":"l7-naima-editor-02","spawnX":1160,"spawnY":660},{"unitId":"huaqiang","count":1,"instanceId":"l7-huaqiang-editor-01","spawnX":180,"spawnY":260},{"unitId":"couqie","count":1,"instanceId":"l7-couqie-editor-02","spawnX":220,"spawnY":640},{"unitId":"couqie","count":1,"instanceId":"l7-couqie-editor-03","spawnX":480,"spawnY":560},{"unitId":"couqie","count":1,"instanceId":"l7-couqie-editor-04","spawnX":300,"spawnY":500},{"unitId":"couqie","count":1,"instanceId":"l7-couqie-editor-05","spawnX":440,"spawnY":460},{"unitId":"couqie","count":1,"instanceId":"l7-couqie-editor-06","spawnX":420,"spawnY":140},{"unitId":"couqie","count":1,"instanceId":"l7-couqie-editor-07","spawnX":620,"spawnY":260},{"unitId":"couqie","count":1,"instanceId":"l7-couqie-editor-08","spawnX":780,"spawnY":220},{"unitId":"couqie","count":1,"instanceId":"l7-couqie-editor-09","spawnX":580,"spawnY":140},{"unitId":"couqie","count":1,"instanceId":"l7-couqie-editor-10","spawnX":460,"spawnY":240},{"unitId":"couqie","count":1,"instanceId":"l7-couqie-editor-11","spawnX":740,"spawnY":140},{"unitId":"couqie","count":1,"instanceId":"l7-couqie-editor-12","spawnX":620,"spawnY":460},{"unitId":"daodun","count":1,"instanceId":"l7-daodun-editor-01","spawnX":1400,"spawnY":260},{"unitId":"dagou","count":1,"instanceId":"l7-dagou-editor-01","spawnX":1260,"spawnY":120}],"playerDeployZones":[{"id":"player-zone-2","points":[{"x":21,"y":21},{"x":17,"y":798},{"x":83,"y":798},{"x":82,"y":412},{"x":798,"y":404},{"x":559,"y":719},{"x":639,"y":719},{"x":880,"y":414},{"x":1199,"y":404},{"x":1444,"y":796},{"x":1524,"y":800},{"x":1521,"y":410},{"x":1440,"y":75},{"x":1360,"y":75},{"x":1437,"y":316},{"x":399,"y":317},{"x":239,"y":75},{"x":156,"y":78},{"x":318,"y":317},{"x":89,"y":316},{"x":83,"y":29}]}]},{"id":8,"name":"召唤超市","subtitle":"难度 6 · 召唤流反制课","budget":1750,"tip":"大狗和刀盾在前排，耄耋与咕咕嘎嘎在中排，瓜老板和奶蛙在后排；范围伤害是破解召唤物的关键。","deploymentClearancePx":2,"deploymentOverlapPercent":20,"enemies":[{"unitId":"dagou","count":1,"instanceId":"l8-dagou-editor-01","spawnX":680,"spawnY":620},{"unitId":"melonboss","count":1,"instanceId":"l8-melonboss-editor-01","spawnX":1140,"spawnY":720},{"unitId":"melonboss","count":1,"instanceId":"l8-melonboss-editor-02","spawnX":1060,"spawnY":160},{"unitId":"dayun","count":1,"instanceId":"l8-dayun-editor-01","spawnX":320,"spawnY":700},{"unitId":"naima","count":1,"instanceId":"l8-naima-editor-01","spawnX":420,"spawnY":220},{"unitId":"naima","count":1,"instanceId":"l8-naima-editor-02","spawnX":480,"spawnY":620},{"unitId":"naima","count":1,"instanceId":"l8-naima-editor-03","spawnX":1320,"spawnY":100},{"unitId":"dagou","count":1,"instanceId":"l8-dagou-01","spawnX":220,"spawnY":200,"overrides":{"hp":560}},{"unitId":"couqie","count":1,"instanceId":"l8-couqie-01","spawnX":960,"spawnY":220},{"unitId":"couqie","count":1,"instanceId":"l8-couqie-02","spawnX":320,"spawnY":280},{"unitId":"couqie","count":1,"instanceId":"l8-couqie-03","spawnX":1020,"spawnY":680},{"unitId":"maodie","count":1,"instanceId":"l8-maodie-01","spawnX":1240,"spawnY":250},{"unitId":"maodie","count":1,"instanceId":"l8-maodie-02","spawnX":560,"spawnY":520}],"playerDeployZones":[{"id":"player-zone-2","points":[{"x":42,"y":56},{"x":149,"y":62},{"x":144,"y":427},{"x":725,"y":423},{"x":732,"y":71},{"x":872,"y":60},{"x":841,"y":423},{"x":1455,"y":390},{"x":1471,"y":47},{"x":1558,"y":42},{"x":1547,"y":778},{"x":1475,"y":778},{"x":847,"y":477},{"x":844,"y":767},{"x":728,"y":762},{"x":724,"y":474},{"x":148,"y":482},{"x":141,"y":759},{"x":52,"y":763}]}]},{"id":9,"name":"红蓝对冲","subtitle":"难度 7 · 刺客与多线压力","budget":1900,"tip":"大运、大狗和刀盾稳住前线，后排要有范围与点杀两种输出；刺客怕人海，远程怕突脸。","deploymentClearancePx":2,"deploymentOverlapPercent":20,"enemies":[{"unitId":"dayun","count":1,"instanceId":"l9-dayun-01","spawnX":940,"spawnY":200,"overrides":{"hp":340}},{"unitId":"dayun","count":1,"instanceId":"l9-dayun-editor-01","spawnX":940,"spawnY":540},{"unitId":"dayun","count":1,"instanceId":"l9-dayun-editor-02","spawnX":940,"spawnY":360},{"unitId":"couqie","count":1,"instanceId":"l9-couqie-editor-01","spawnX":1100,"spawnY":60},{"unitId":"couqie","count":1,"instanceId":"l9-couqie-editor-02","spawnX":1100,"spawnY":160},{"unitId":"couqie","count":1,"instanceId":"l9-couqie-editor-03","spawnX":1100,"spawnY":240},{"unitId":"couqie","count":1,"instanceId":"l9-couqie-editor-04","spawnX":1100,"spawnY":320},{"unitId":"couqie","count":1,"instanceId":"l9-couqie-editor-05","spawnX":1080,"spawnY":380},{"unitId":"couqie","count":1,"instanceId":"l9-couqie-editor-06","spawnX":1080,"spawnY":460},{"unitId":"couqie","count":1,"instanceId":"l9-couqie-editor-07","spawnX":1080,"spawnY":520},{"unitId":"couqie","count":1,"instanceId":"l9-couqie-editor-08","spawnX":1060,"spawnY":580},{"unitId":"couqie","count":1,"instanceId":"l9-couqie-editor-09","spawnX":1060,"spawnY":680},{"unitId":"couqie","count":1,"instanceId":"l9-couqie-editor-10","spawnX":1060,"spawnY":740},{"unitId":"couqie","count":1,"instanceId":"l9-couqie-editor-11","spawnX":1180,"spawnY":60},{"unitId":"couqie","count":1,"instanceId":"l9-couqie-editor-12","spawnX":1180,"spawnY":140},{"unitId":"couqie","count":1,"instanceId":"l9-couqie-editor-13","spawnX":1180,"spawnY":200},{"unitId":"couqie","count":1,"instanceId":"l9-couqie-editor-14","spawnX":1180,"spawnY":280},{"unitId":"couqie","count":1,"instanceId":"l9-couqie-editor-15","spawnX":1160,"spawnY":380},{"unitId":"couqie","count":1,"instanceId":"l9-couqie-editor-16","spawnX":1160,"spawnY":460},{"unitId":"couqie","count":1,"instanceId":"l9-couqie-editor-17","spawnX":1160,"spawnY":540},{"unitId":"couqie","count":1,"instanceId":"l9-couqie-editor-18","spawnX":1160,"spawnY":620},{"unitId":"couqie","count":1,"instanceId":"l9-couqie-editor-19","spawnX":1140,"spawnY":680},{"unitId":"couqie","count":1,"instanceId":"l9-couqie-editor-20","spawnX":1260,"spawnY":140},{"unitId":"couqie","count":1,"instanceId":"l9-couqie-editor-21","spawnX":1260,"spawnY":340},{"unitId":"couqie","count":1,"instanceId":"l9-couqie-editor-22","spawnX":1260,"spawnY":440},{"unitId":"couqie","count":1,"instanceId":"l9-couqie-editor-23","spawnX":1260,"spawnY":560},{"unitId":"couqie","count":1,"instanceId":"l9-couqie-editor-24","spawnX":1260,"spawnY":640},{"unitId":"couqie","count":1,"instanceId":"l9-couqie-editor-25","spawnX":1280,"spawnY":220},{"unitId":"miaocuijiao","count":1,"instanceId":"l9-miaocuijiao-editor-01","spawnX":1420,"spawnY":220},{"unitId":"miaocuijiao","count":1,"instanceId":"l9-miaocuijiao-editor-02","spawnX":1420,"spawnY":480}],"playerDeployZones":[{"id":"player-zone-1","points":[{"x":90,"y":120},{"x":760,"y":120},{"x":760,"y":610},{"x":90,"y":610}]}]},{"id":10,"name":"瓜摊王座","subtitle":"BOSS 1 · 单核首领与护卫阵","budget":2050,"tip":"首领瓜老板拥有高生命与范围投瓜，前排护卫会争取时间；带一个能切后排或稳定远程的解题单位。","deploymentClearancePx":2,"deploymentOverlapPercent":20,"enemies":[{"unitId":"melonboss","count":1,"instanceId":"l10-melonboss-editor-01","spawnX":1160,"spawnY":580},{"unitId":"daodun","count":1,"instanceId":"l10-daodun-editor-01","spawnX":900,"spawnY":640},{"unitId":"melonboss","count":1,"instanceId":"l10-melonboss-editor-04","spawnX":1420,"spawnY":200},{"unitId":"melonboss","count":1,"instanceId":"l10-melonboss-editor-05","spawnX":1440,"spawnY":580},{"unitId":"melonboss","count":1,"instanceId":"l10-melonboss-editor-06","spawnX":1300,"spawnY":100},{"unitId":"melonboss","count":1,"instanceId":"l10-melonboss-editor-07","spawnX":1320,"spawnY":720},{"unitId":"melonboss","count":1,"instanceId":"l10-melonboss-editor-10","spawnX":1300,"spawnY":500},{"unitId":"daodun","count":1,"instanceId":"l10-daodun-01","spawnX":920,"spawnY":420,"overrides":{"hp":370}},{"unitId":"melonboss","count":1,"instanceId":"l10-melonboss-editor-11","spawnX":1160,"spawnY":200},{"unitId":"boss_guasheng","count":1,"instanceId":"l10-boss-guasheng","spawnX":1500,"spawnY":400,"overrides":{"hp":1300,"atk":32,"as":0.82,"range":290}},{"unitId":"daodun","count":1,"instanceId":"l10-daodun-editor-02","spawnX":940,"spawnY":180},{"unitId":"daodun","count":1,"instanceId":"l10-daodun-editor-03","spawnX":1040,"spawnY":300},{"unitId":"daodun","count":1,"instanceId":"l10-daodun-editor-04","spawnX":1020,"spawnY":540},{"unitId":"daodun","count":1,"instanceId":"l10-daodun-editor-05","spawnX":1040,"spawnY":100},{"unitId":"daodun","count":1,"instanceId":"l10-daodun-editor-06","spawnX":1040,"spawnY":700},{"unitId":"melonboss","count":1,"instanceId":"l10-melonboss-editor-02","spawnX":1300,"spawnY":300}],"playerDeployZones":[{"id":"player-zone-1","points":[{"x":90,"y":120},{"x":760,"y":120},{"x":760,"y":610},{"x":90,"y":610}]}]},{"id":11,"name":"双核推进","subtitle":"难度 8 · 双坦克与持续火力","budget":2200,"tip":"两个前排核心会轮流吸收伤害，中后排输出要分散站位；先处理治疗，再拆掉双核。","deploymentClearancePx":2,"deploymentOverlapPercent":20,"enemies":[{"unitId":"miaocuijiao","count":1,"instanceId":"l11-miaocuijiao-editor-01","spawnX":1360,"spawnY":180},{"unitId":"miaocuijiao","count":1,"instanceId":"l11-miaocuijiao-editor-02","spawnX":1360,"spawnY":300},{"unitId":"miaocuijiao","count":1,"instanceId":"l11-miaocuijiao-editor-03","spawnX":1380,"spawnY":420},{"unitId":"miaocuijiao","count":1,"instanceId":"l11-miaocuijiao-editor-04","spawnX":1380,"spawnY":540},{"unitId":"daodun","count":1,"instanceId":"l11-daodun-editor-01","spawnX":1000,"spawnY":220},{"unitId":"daodun","count":1,"instanceId":"l11-daodun-editor-03","spawnX":980,"spawnY":520},{"unitId":"naima","count":1,"instanceId":"l11-naima-editor-01","spawnX":1140,"spawnY":200},{"unitId":"naima","count":1,"instanceId":"l11-naima-editor-05","spawnX":1120,"spawnY":620},{"unitId":"couqie","count":1,"instanceId":"l11-couqie-editor-01","spawnX":980,"spawnY":100},{"unitId":"couqie","count":1,"instanceId":"l11-couqie-editor-02","spawnX":980,"spawnY":740},{"unitId":"couqie","count":1,"instanceId":"l11-couqie-editor-03","spawnX":1500,"spawnY":60},{"unitId":"couqie","count":1,"instanceId":"l11-couqie-editor-04","spawnX":1500,"spawnY":700},{"unitId":"couqie","count":1,"instanceId":"l11-couqie-editor-05","spawnX":1500,"spawnY":280},{"unitId":"couqie","count":1,"instanceId":"l11-couqie-editor-06","spawnX":1500,"spawnY":480},{"unitId":"naima","count":1,"instanceId":"l11-naima-editor-06","spawnX":1220,"spawnY":300},{"unitId":"naima","count":1,"instanceId":"l11-naima-editor-07","spawnX":1220,"spawnY":520},{"unitId":"naima","count":1,"instanceId":"l11-naima-editor-08","spawnX":1200,"spawnY":640},{"unitId":"naima","count":1,"instanceId":"l11-naima-editor-10","spawnX":1220,"spawnY":180}],"playerDeployZones":[{"id":"player-zone-1","points":[{"x":90,"y":120},{"x":760,"y":120},{"x":760,"y":610},{"x":90,"y":610}]}]},{"id":12,"name":"三路封锁","subtitle":"难度 9 · 前排密度与远程火力","budget":2950,"tip":"前排不止一层，单个大运会被拖住；用范围控制清掉缝隙，再用刺客处理后排。","deploymentClearancePx":2,"deploymentOverlapPercent":20,"enemies":[{"unitId":"daodun","count":1,"instanceId":"l12-daodun-editor-01","spawnX":1140,"spawnY":300},{"unitId":"daodun","count":1,"instanceId":"l12-daodun-editor-02","spawnX":1140,"spawnY":520},{"unitId":"daodun","count":1,"instanceId":"l12-daodun-editor-03","spawnX":960,"spawnY":660},{"unitId":"daodun","count":1,"instanceId":"l12-daodun-editor-04","spawnX":660,"spawnY":660},{"unitId":"daodun","count":1,"instanceId":"l12-daodun-editor-05","spawnX":480,"spawnY":500},{"unitId":"daodun","count":1,"instanceId":"l12-daodun-editor-06","spawnX":460,"spawnY":280},{"unitId":"daodun","count":1,"instanceId":"l12-daodun-editor-07","spawnX":660,"spawnY":160},{"unitId":"daodun","count":1,"instanceId":"l12-daodun-editor-08","spawnX":960,"spawnY":160},{"unitId":"gazi","count":1,"instanceId":"l12-gazi-editor-01","spawnX":280,"spawnY":420},{"unitId":"gazi","count":1,"instanceId":"l12-gazi-editor-02","spawnX":800,"spawnY":60},{"unitId":"dayun","count":1,"instanceId":"l12-dayun-editor-01","spawnX":1320,"spawnY":400},{"unitId":"dayun","count":1,"instanceId":"l12-dayun-editor-02","spawnX":800,"spawnY":760}],"playerDeployZones":[{"id":"player-zone-1","points":[{"x":559,"y":233},{"x":1039,"y":248},{"x":1039,"y":564},{"x":561,"y":563}]}]},{"id":13,"name":"冲锋风暴","subtitle":"难度 10 · 多重冲锋与刺杀","budget":2600,"tip":"冲锋会把阵线切开，前排需要互相补位；刺客负责抓远程，但遇到人海会失去爆发空间。","deploymentClearancePx":2,"deploymentOverlapPercent":20,"enemies":[{"unitId":"dayun","count":1,"instanceId":"l13-dayun-01","spawnX":930,"spawnY":220,"overrides":{"hp":300,"atk":30}},{"unitId":"dayun","count":1,"instanceId":"l13-dayun-02","spawnX":930,"spawnY":600,"overrides":{"hp":240,"atk":20}},{"unitId":"dagou","count":1,"instanceId":"l13-dagou-01","spawnX":1010,"spawnY":410,"overrides":{"hp":420}},{"unitId":"huaqiang","count":1,"instanceId":"l13-huaqiang-01","spawnX":1040,"spawnY":100,"overrides":{"hp":300,"atk":20}},{"unitId":"couqie","count":1,"instanceId":"l13-couqie-01","spawnX":1120,"spawnY":120,"overrides":{"hp":40,"atk":2}},{"unitId":"couqie","count":1,"instanceId":"l13-couqie-02","spawnX":1120,"spawnY":250,"overrides":{"hp":40,"atk":2}},{"unitId":"couqie","count":1,"instanceId":"l13-couqie-03","spawnX":1120,"spawnY":380,"overrides":{"hp":40,"atk":2}},{"unitId":"couqie","count":1,"instanceId":"l13-couqie-04","spawnX":1120,"spawnY":520,"overrides":{"hp":40,"atk":2}},{"unitId":"couqie","count":1,"instanceId":"l13-couqie-05","spawnX":1120,"spawnY":700,"overrides":{"hp":40,"atk":2}},{"unitId":"couqie","count":1,"instanceId":"l13-couqie-06","spawnX":1140,"spawnY":180,"overrides":{"hp":40,"atk":2}},{"unitId":"couqie","count":1,"instanceId":"l13-couqie-07","spawnX":1140,"spawnY":330,"overrides":{"hp":40,"atk":2}},{"unitId":"couqie","count":1,"instanceId":"l13-couqie-08","spawnX":1140,"spawnY":470,"overrides":{"hp":40,"atk":2}},{"unitId":"couqie","count":1,"instanceId":"l13-couqie-09","spawnX":1140,"spawnY":620,"overrides":{"hp":40,"atk":2}},{"unitId":"couqie","count":1,"instanceId":"l13-couqie-10","spawnX":1050,"spawnY":240,"overrides":{"hp":40,"atk":2}},{"unitId":"couqie","count":1,"instanceId":"l13-couqie-11","spawnX":1050,"spawnY":740,"overrides":{"hp":40,"atk":2}},{"unitId":"gugugaga","count":1,"instanceId":"l13-gugugaga-01","spawnX":1160,"spawnY":80},{"unitId":"maodie","count":1,"instanceId":"l13-maodie-01","spawnX":1220,"spawnY":410},{"unitId":"miaocuijiao","count":1,"instanceId":"l13-miaocuijiao-01","spawnX":1360,"spawnY":180,"overrides":{"hp":140,"atk":50}},{"unitId":"gazi","count":1,"instanceId":"l13-gazi-01","spawnX":1420,"spawnY":410,"overrides":{"hp":300,"atk":35}},{"unitId":"caixukun","count":1,"instanceId":"l13-caixukun-01","spawnX":1490,"spawnY":200,"overrides":{"hp":230,"atk":17}},{"unitId":"naima","count":1,"instanceId":"l13-naima-01","spawnX":1490,"spawnY":650}],"playerDeployZones":[{"id":"player-zone-1","points":[{"x":90,"y":120},{"x":760,"y":120},{"x":760,"y":610},{"x":90,"y":610}]}]},{"id":14,"name":"召唤反制","subtitle":"难度 11 · 双 AOE 与后排续航","budget":2650,"tip":"两只瓜老板会把召唤物成片清掉；前排护卫只是拖延，必须用刺客或冲锋切掉后排续航。","deploymentClearancePx":2,"deploymentOverlapPercent":20,"enemies":[{"unitId":"dagou","count":1,"instanceId":"l14-dagou-01","spawnX":940,"spawnY":220,"overrides":{"hp":610}},{"unitId":"dagou","count":1,"instanceId":"l14-dagou-02","spawnX":940,"spawnY":600,"overrides":{"hp":610}},{"unitId":"daodun","count":1,"instanceId":"l14-daodun-01","spawnX":1020,"spawnY":140,"overrides":{"hp":390}},{"unitId":"daodun","count":1,"instanceId":"l14-daodun-02","spawnX":1020,"spawnY":680,"overrides":{"hp":390}},{"unitId":"couqie","count":1,"instanceId":"l14-couqie-01","spawnX":1020,"spawnY":410},{"unitId":"couqie","count":1,"instanceId":"l14-couqie-02","spawnX":1080,"spawnY":410,"overrides":{"hp":40,"atk":2}},{"unitId":"maodie","count":1,"instanceId":"l14-maodie-01","spawnX":1160,"spawnY":250},{"unitId":"maodie","count":1,"instanceId":"l14-maodie-02","spawnX":1160,"spawnY":570},{"unitId":"gugugaga","count":1,"instanceId":"l14-gugugaga-01","spawnX":1220,"spawnY":410},{"unitId":"melonboss","count":1,"instanceId":"l14-melonboss-01","spawnX":1400,"spawnY":170,"overrides":{"hp":260,"atk":25}},{"unitId":"melonboss","count":1,"instanceId":"l14-melonboss-02","spawnX":1400,"spawnY":650,"overrides":{"hp":260,"atk":25}},{"unitId":"naima","count":1,"instanceId":"l14-naima-01","spawnX":1480,"spawnY":250},{"unitId":"naima","count":1,"instanceId":"l14-naima-02","spawnX":1480,"spawnY":570},{"unitId":"caixukun","count":1,"instanceId":"l14-caixukun-01","spawnX":1480,"spawnY":410,"overrides":{"hp":340}}],"playerDeployZones":[{"id":"player-zone-1","points":[{"x":90,"y":120},{"x":760,"y":120},{"x":760,"y":610},{"x":90,"y":610}]}]},{"id":15,"name":"远程封顶","subtitle":"难度 12 · 三层远程火力网","budget":2800,"tip":"火力网会惩罚单一前排：用大运制造突破口，用范围控制打断输出，再让刺客收尾。","deploymentClearancePx":2,"deploymentOverlapPercent":20,"enemies":[{"unitId":"dagou","count":1,"instanceId":"l15-dagou-01","spawnX":930,"spawnY":200,"overrides":{"hp":620}},{"unitId":"dagou","count":1,"instanceId":"l15-dagou-02","spawnX":930,"spawnY":620,"overrides":{"hp":620}},{"unitId":"dayun","count":1,"instanceId":"l15-dayun-01","spawnX":930,"spawnY":410,"overrides":{"hp":410}},{"unitId":"daodun","count":1,"instanceId":"l15-daodun-01","spawnX":1010,"spawnY":260,"overrides":{"hp":400}},{"unitId":"daodun","count":1,"instanceId":"l15-daodun-02","spawnX":1010,"spawnY":560,"overrides":{"hp":400}},{"unitId":"couqie","count":1,"instanceId":"l15-couqie-01","spawnX":1080,"spawnY":410,"overrides":{"hp":40,"atk":2}},{"unitId":"gugugaga","count":1,"instanceId":"l15-gugugaga-01","spawnX":1160,"spawnY":180},{"unitId":"gugugaga","count":1,"instanceId":"l15-gugugaga-02","spawnX":1160,"spawnY":640},{"unitId":"maodie","count":1,"instanceId":"l15-maodie-01","spawnX":1220,"spawnY":410},{"unitId":"caixukun","count":1,"instanceId":"l15-caixukun-01","spawnX":1400,"spawnY":170,"overrides":{"hp":340}},{"unitId":"caixukun","count":1,"instanceId":"l15-caixukun-02","spawnX":1400,"spawnY":650,"overrides":{"hp":340}},{"unitId":"gazi","count":1,"instanceId":"l15-gazi-01","spawnX":1460,"spawnY":270},{"unitId":"gazi","count":1,"instanceId":"l15-gazi-02","spawnX":1460,"spawnY":550},{"unitId":"huangsedashu","count":1,"instanceId":"l15-huangsedashu-01","spawnX":1500,"spawnY":410}],"playerDeployZones":[{"id":"player-zone-1","points":[{"x":90,"y":120},{"x":760,"y":120},{"x":760,"y":610},{"x":90,"y":610}]}]},{"id":16,"name":"四角夹击","subtitle":"难度 13 · 四向切入与反打","budget":2950,"tip":"刺客、跳后排和控制会从不同角度切入；前排不能挤成一团，后排要留出反打空间。","deploymentClearancePx":2,"deploymentOverlapPercent":20,"enemies":[{"unitId":"huaqiang","count":1,"instanceId":"l16-huaqiang-01","spawnX":930,"spawnY":220,"overrides":{"hp":370,"atk":36}},{"unitId":"niulai","count":1,"instanceId":"l16-niulai-01","spawnX":930,"spawnY":600,"overrides":{"hp":480}},{"unitId":"dagou","count":1,"instanceId":"l16-dagou-01","spawnX":1010,"spawnY":410,"overrides":{"hp":630}},{"unitId":"daodun","count":1,"instanceId":"l16-daodun-01","spawnX":1010,"spawnY":140,"overrides":{"hp":410}},{"unitId":"daodun","count":1,"instanceId":"l16-daodun-02","spawnX":1010,"spawnY":680,"overrides":{"hp":410}},{"unitId":"maodie","count":1,"instanceId":"l16-maodie-01","spawnX":1160,"spawnY":240},{"unitId":"maodie","count":1,"instanceId":"l16-maodie-02","spawnX":1160,"spawnY":580},{"unitId":"gugugaga","count":1,"instanceId":"l16-gugugaga-01","spawnX":1220,"spawnY":160},{"unitId":"gugugaga","count":1,"instanceId":"l16-gugugaga-02","spawnX":1220,"spawnY":660},{"unitId":"miaocuijiao","count":1,"instanceId":"l16-miaocuijiao-01","spawnX":1360,"spawnY":210,"overrides":{"hp":240,"atk":112}},{"unitId":"miaocuijiao","count":1,"instanceId":"l16-miaocuijiao-02","spawnX":1360,"spawnY":610,"overrides":{"hp":240,"atk":112}},{"unitId":"gazi","count":1,"instanceId":"l16-gazi-01","spawnX":1430,"spawnY":410},{"unitId":"caixukun","count":1,"instanceId":"l16-caixukun-01","spawnX":1490,"spawnY":180,"overrides":{"hp":350}},{"unitId":"naima","count":1,"instanceId":"l16-naima-01","spawnX":1490,"spawnY":640}],"playerDeployZones":[{"id":"player-zone-1","points":[{"x":90,"y":120},{"x":760,"y":120},{"x":760,"y":610},{"x":90,"y":610}]}]},{"id":17,"name":"极限防线","subtitle":"难度 14 · 厚前排与双续航","budget":3100,"tip":"两层前排加双召唤续航，不能只靠单体爆发；先用范围技能压低后排，再集中拆前排。","deploymentClearancePx":2,"deploymentOverlapPercent":20,"enemies":[{"unitId":"dayun","count":1,"instanceId":"l17-dayun-01","spawnX":920,"spawnY":220,"overrides":{"hp":420}},{"unitId":"dagou","count":1,"instanceId":"l17-dagou-01","spawnX":1000,"spawnY":140,"overrides":{"hp":640}},{"unitId":"dagou","count":1,"instanceId":"l17-dagou-02","spawnX":1000,"spawnY":680,"overrides":{"hp":640}},{"unitId":"daodun","count":1,"instanceId":"l17-daodun-01","spawnX":1040,"spawnY":330,"overrides":{"hp":420}},{"unitId":"couqie","count":1,"instanceId":"l17-couqie-01","spawnX":1080,"spawnY":100,"overrides":{"hp":40,"atk":2}},{"unitId":"couqie","count":1,"instanceId":"l17-couqie-02","spawnX":1080,"spawnY":220,"overrides":{"hp":40,"atk":2}},{"unitId":"couqie","count":1,"instanceId":"l17-couqie-03","spawnX":1080,"spawnY":460,"overrides":{"hp":40,"atk":2}},{"unitId":"couqie","count":1,"instanceId":"l17-couqie-04","spawnX":1080,"spawnY":600,"overrides":{"hp":40,"atk":2}},{"unitId":"couqie","count":1,"instanceId":"l17-couqie-05","spawnX":1080,"spawnY":720,"overrides":{"hp":40,"atk":2}},{"unitId":"couqie","count":1,"instanceId":"l17-couqie-06","spawnX":1100,"spawnY":340,"overrides":{"hp":40,"atk":2}},{"unitId":"couqie","count":1,"instanceId":"l17-couqie-07","spawnX":1120,"spawnY":640,"overrides":{"hp":40,"atk":2}},{"unitId":"couqie","count":1,"instanceId":"l17-couqie-08","spawnX":1120,"spawnY":180,"overrides":{"hp":40,"atk":2}},{"unitId":"couqie","count":1,"instanceId":"l17-couqie-09","spawnX":1120,"spawnY":500,"overrides":{"hp":40,"atk":2}},{"unitId":"maodie","count":1,"instanceId":"l17-maodie-01","spawnX":1160,"spawnY":240},{"unitId":"gugugaga","count":1,"instanceId":"l17-gugugaga-01","spawnX":1220,"spawnY":140},{"unitId":"melonboss","count":1,"instanceId":"l17-melonboss-01","spawnX":1360,"spawnY":200,"overrides":{"hp":280,"atk":27}},{"unitId":"melonboss","count":1,"instanceId":"l17-melonboss-02","spawnX":1360,"spawnY":620,"overrides":{"hp":280,"atk":27}},{"unitId":"caixukun","count":1,"instanceId":"l17-caixukun-01","spawnX":1430,"spawnY":120,"overrides":{"hp":360}},{"unitId":"gazi","count":1,"instanceId":"l17-gazi-01","spawnX":1500,"spawnY":410},{"unitId":"naima","count":1,"instanceId":"l17-naima-01","spawnX":1500,"spawnY":600}],"playerDeployZones":[{"id":"player-zone-1","points":[{"x":90,"y":120},{"x":760,"y":120},{"x":760,"y":610},{"x":90,"y":610}]}]},{"id":18,"name":"全机制压测","subtitle":"难度 15 · 全机制交叉考试","budget":3250,"tip":"冲锋、控制、刺杀、召唤和范围火力同时出现；布阵要分层，输出要同时准备点杀与 AOE。","deploymentClearancePx":2,"deploymentOverlapPercent":20,"enemies":[{"unitId":"dayun","count":1,"instanceId":"l18-dayun-01","spawnX":920,"spawnY":160,"overrides":{"hp":430}},{"unitId":"dagou","count":1,"instanceId":"l18-dagou-01","spawnX":1000,"spawnY":260,"overrides":{"hp":650}},{"unitId":"dagou","count":1,"instanceId":"l18-dagou-02","spawnX":1000,"spawnY":560,"overrides":{"hp":650}},{"unitId":"huaqiang","count":1,"instanceId":"l18-huaqiang-01","spawnX":1040,"spawnY":410,"overrides":{"hp":380,"atk":38}},{"unitId":"daodun","count":1,"instanceId":"l18-daodun-01","spawnX":1040,"spawnY":100,"overrides":{"hp":430}},{"unitId":"couqie","count":1,"instanceId":"l18-couqie-01","spawnX":1080,"spawnY":180,"overrides":{"hp":40,"atk":2}},{"unitId":"couqie","count":1,"instanceId":"l18-couqie-02","spawnX":1080,"spawnY":300,"overrides":{"hp":40,"atk":2}},{"unitId":"couqie","count":1,"instanceId":"l18-couqie-03","spawnX":1080,"spawnY":520,"overrides":{"hp":40,"atk":2}},{"unitId":"couqie","count":1,"instanceId":"l18-couqie-04","spawnX":1080,"spawnY":700,"overrides":{"hp":40,"atk":2}},{"unitId":"couqie","count":1,"instanceId":"l18-couqie-05","spawnX":1120,"spawnY":260,"overrides":{"hp":40,"atk":2}},{"unitId":"couqie","count":1,"instanceId":"l18-couqie-06","spawnX":1120,"spawnY":600,"overrides":{"hp":40,"atk":2}},{"unitId":"maodie","count":1,"instanceId":"l18-maodie-01","spawnX":1160,"spawnY":220},{"unitId":"gugugaga","count":1,"instanceId":"l18-gugugaga-01","spawnX":1220,"spawnY":120},{"unitId":"miaocuijiao","count":1,"instanceId":"l18-miaocuijiao-01","spawnX":1360,"spawnY":180,"overrides":{"hp":250,"atk":114}},{"unitId":"gazi","count":1,"instanceId":"l18-gazi-01","spawnX":1430,"spawnY":300},{"unitId":"caixukun","count":1,"instanceId":"l18-caixukun-01","spawnX":1500,"spawnY":160,"overrides":{"hp":370}},{"unitId":"naima","count":1,"instanceId":"l18-naima-01","spawnX":1500,"spawnY":680},{"unitId":"melonboss","count":1,"instanceId":"l18-melonboss-01","spawnX":1500,"spawnY":410,"overrides":{"hp":300,"atk":28}}],"playerDeployZones":[{"id":"player-zone-1","points":[{"x":90,"y":120},{"x":760,"y":120},{"x":760,"y":610},{"x":90,"y":610}]}]},{"id":19,"name":"最终前夜","subtitle":"难度 16 · Boss 前最后整备","budget":3500,"tip":"这是最终 Boss 前的综合压力关：每一层都有职责，先拆续航与控制，再用人海围住高价值目标。","deploymentClearancePx":2,"deploymentOverlapPercent":20,"enemies":[{"unitId":"dayun","count":1,"instanceId":"l19-dayun-01","spawnX":920,"spawnY":220,"overrides":{"hp":400}},{"unitId":"dayun","count":1,"instanceId":"l19-dayun-02","spawnX":920,"spawnY":600,"overrides":{"hp":400}},{"unitId":"dagou","count":1,"instanceId":"l19-dagou-01","spawnX":1000,"spawnY":410,"overrides":{"hp":600}},{"unitId":"daodun","count":1,"instanceId":"l19-daodun-01","spawnX":1040,"spawnY":180,"overrides":{"hp":420}},{"unitId":"couqie","count":1,"instanceId":"l19-couqie-01","spawnX":1080,"spawnY":100,"overrides":{"hp":40,"atk":2}},{"unitId":"couqie","count":1,"instanceId":"l19-couqie-02","spawnX":1080,"spawnY":300,"overrides":{"hp":40,"atk":2}},{"unitId":"couqie","count":1,"instanceId":"l19-couqie-03","spawnX":1080,"spawnY":500,"overrides":{"hp":40,"atk":2}},{"unitId":"couqie","count":1,"instanceId":"l19-couqie-04","spawnX":1080,"spawnY":700,"overrides":{"hp":40,"atk":2}},{"unitId":"couqie","count":1,"instanceId":"l19-couqie-05","spawnX":1120,"spawnY":410,"overrides":{"hp":40,"atk":2}},{"unitId":"couqie","count":1,"instanceId":"l19-couqie-06","spawnX":1120,"spawnY":200,"overrides":{"hp":40,"atk":2}},{"unitId":"couqie","count":1,"instanceId":"l19-couqie-07","spawnX":1120,"spawnY":600,"overrides":{"hp":40,"atk":2}},{"unitId":"maodie","count":1,"instanceId":"l19-maodie-01","spawnX":1160,"spawnY":250},{"unitId":"gugugaga","count":1,"instanceId":"l19-gugugaga-01","spawnX":1220,"spawnY":570},{"unitId":"melonboss","count":1,"instanceId":"l19-melonboss-01","spawnX":1360,"spawnY":180,"overrides":{"hp":330,"atk":30}},{"unitId":"melonboss","count":1,"instanceId":"l19-melonboss-02","spawnX":1360,"spawnY":640,"overrides":{"hp":330,"atk":30}},{"unitId":"caixukun","count":1,"instanceId":"l19-caixukun-01","spawnX":1430,"spawnY":410,"overrides":{"hp":360}},{"unitId":"gazi","count":1,"instanceId":"l19-gazi-01","spawnX":1490,"spawnY":250},{"unitId":"miaocuijiao","count":1,"instanceId":"l19-miaocuijiao-01","spawnX":1490,"spawnY":100,"overrides":{"hp":200,"atk":82}},{"unitId":"naima","count":1,"instanceId":"l19-naima-01","spawnX":1490,"spawnY":700}],"playerDeployZones":[{"id":"player-zone-1","points":[{"x":90,"y":120},{"x":760,"y":120},{"x":760,"y":610},{"x":90,"y":610}]}]},{"id":20,"name":"双王终战","subtitle":"BOSS 2 · 双首领最终决战","budget":3600,"tip":"两名新首领互补：白酒擂台王负责短距冲锋与续航，瓜神负责远程瓜雨压制。先拆续航，再用前排分割两名首领，避免让任何一个首领长时间安全输出。","deploymentClearancePx":2,"deploymentOverlapPercent":20,"enemies":[{"unitId":"boss_baijiu","count":1,"instanceId":"l20-boss-baijiu","spawnX":920,"spawnY":410,"overrides":{"hp":1150,"atk":34,"as":0.82}},{"unitId":"dayun","count":1,"instanceId":"l20-dayun-01","spawnX":1000,"spawnY":220,"overrides":{"hp":470,"atk":40}},{"unitId":"dayun","count":1,"instanceId":"l20-dayun-02","spawnX":1000,"spawnY":600,"overrides":{"hp":470,"atk":40}},{"unitId":"dagou","count":1,"instanceId":"l20-dagou-01","spawnX":1040,"spawnY":140,"overrides":{"hp":600,"atk":25}},{"unitId":"dagou","count":1,"instanceId":"l20-dagou-02","spawnX":1040,"spawnY":680,"overrides":{"hp":600,"atk":25}},{"unitId":"daodun","count":1,"instanceId":"l20-daodun-01","spawnX":1040,"spawnY":410,"overrides":{"hp":420}},{"unitId":"maodie","count":1,"instanceId":"l20-maodie-01","spawnX":1160,"spawnY":230,"overrides":{"hp":380}},{"unitId":"gugugaga","count":1,"instanceId":"l20-gugugaga-01","spawnX":1220,"spawnY":150,"overrides":{"hp":230}},{"unitId":"boss_guasheng","count":1,"instanceId":"l20-boss-guasheng","spawnX":1400,"spawnY":410,"overrides":{"hp":1050,"atk":30,"as":0.86,"range":290}},{"unitId":"caixukun","count":1,"instanceId":"l20-caixukun-01","spawnX":1470,"spawnY":220,"overrides":{"hp":350,"atk":26}},{"unitId":"caixukun","count":1,"instanceId":"l20-caixukun-02","spawnX":1470,"spawnY":600,"overrides":{"hp":350,"atk":26}},{"unitId":"naima","count":1,"instanceId":"l20-naima-01","spawnX":1500,"spawnY":130},{"unitId":"gazi","count":1,"instanceId":"l20-gazi-01","spawnX":1500,"spawnY":690}],"playerDeployZones":[{"id":"player-zone-1","points":[{"x":90,"y":120},{"x":760,"y":120},{"x":760,"y":610},{"x":90,"y":610}]}]}]},"./data/audio-assets.json":{"selection":["audio/妈妈.mp3","audio/奶龙捧腹大笑原版.mp3","audio/cut_：一个视频教会大家如何咕咕嘎嘎🐧.mp3","audio/cut_【梗百科】我的刀盾和哔哔拉布是啥梗？.mp3","audio/cut_不行了咕咕嘎嘎太魔性上头了.mp3","audio/cut_蔡 徐 坤 全 部 音 效.mp3","audio/cut_妙脆角很不高兴为你服务.mp3","audio/cut_你胆子真是肥嘟嘟的啊，纯享版，可拿去当素材.mp3","audio/cut_人生啊能不能放过我这一次.mp3","audio/cut_我Chovy，你们拿货给我拿好的啊.mp3","audio/cut_圆头耄耋原视频.mp3","audio/cut_这瓜保熟吗（原视频） (1).mp3","audio/cut_这瓜保熟吗（原视频）.mp3","audio/dagou.mp3"],"hurt":["audioHurt/terraria-hurt-male.mp3"],"melee":["audioJinHit/cut_拳击打斗音效素材 (1).mp3","audioJinHit/cut_拳击打斗音效素材 (2).mp3","audioJinHit/cut_拳击打斗音效素材 (3).mp3","audioJinHit/cut_拳击打斗音效素材.mp3"],"bloom":["audioBloom/cut_拳击打斗音效素材 (4).mp3","audioBloom/cut_拳击打斗音效素材 (5).mp3","audioBloom/cut_拳击打斗音效素材 (6).mp3"],"death":["audioDead/cut_饿啊素材.mp3"]}};</script>
+    <script>window.MEME_WAR_EMBEDDED_DATA = {"./data/units.json":{"units":[{"id":"huaqiang","name":"华强","price":500,"hp":320,"atk":29,"as":1.5,"spd":70,"moveMultiplier":1.02,"range":58,"radius":28,"role":"assassin","roleLabel":"近战刺客 · 切后排/怕控制","combatStyle":"melee","preferredDistance":78,"spriteIndex":0,"spriteFacing":"right","attackStyle":"knife","projectileStyle":"scooter","color":"#ff8b5c","accent":"#ffd166","effectSummary":"近战劈砍；切后排稳定但爆发收敛，仍怕控制","skills":[{"name":"瓜刀劈砍","type":"cone","cd":8.2,"damage":52,"radius":120,"stun":0.22,"knockback":40,"vfxStyle":"knife","behavior":{"module":"cone","trigger":"auto","target":"nearest_enemy","style":"knife","script":"模块=扇形攻击;类型=cone;触发=自动;目标=最近敌人;特效=瓜刀","enabled":true}},{"name":"电瓶车撤离","type":"transform","cd":30,"radius":90,"duration":0.9,"threshold":0.5,"vfxStyle":"scooter","speed":460,"behavior":{"module":"transform","trigger":"auto","target":"nearest_enemy","style":"scooter","script":"模块=形态切换;类型=transform;触发=自动;目标=最近敌人;特效=scooter","enabled":true}}],"basicAttack":{"enabled":true,"module":"melee","mode":"melee","trigger":"auto","target":"nearest_enemy","style":"knife","attackStyle":"knife","script":"模块=近战;触发=自动;目标=最近敌人;特效=瓜刀","name":"华强 · 普通攻击"},"placementSound":"audio/cut_这瓜保熟吗（原视频）.mp3"},{"id":"caixukun","name":"哥哥","price":400,"hp":280,"atk":21,"as":0.95,"spd":62,"moveMultiplier":0.86,"range":320,"radius":25,"role":"ranged","roleLabel":"远程连击 · 擅长点杀/怕突脸","combatStyle":"ranged","preferredDistance":250,"spriteIndex":1,"spriteFacing":"right","attackStyle":"basketball","projectileStyle":"basketball","color":"#7f8cff","accent":"#d7c5ff","comboRadius":260,"comboBackstep":0,"comboSlowDuration":0,"effectSummary":"篮球弹射；连击爆发高但启动慢、怕刺客","skills":[{"name":"铁山靠","type":"proximityKnockback","cd":8,"damage":16,"radius":190,"stun":0.75,"knockback":300,"vfxStyle":"knockback","behavior":{"module":"proximityKnockback","trigger":"auto","target":"nearest_enemy","style":"knockback","script":"模块=近身击退;类型=proximityKnockback;触发=自动;目标=最近敌人;特效=knockback","enabled":true}},{"name":"鸡你太美","type":"comboDive","cd":60,"damage":32,"radius":190,"stun":0.7,"knockback":130,"duration":8,"count":25,"delay":0.8,"vfxStyle":"rhythm","behavior":{"module":"comboDive","trigger":"auto","target":"nearest_enemy","style":"rhythm","script":"模块=连击跳入;类型=comboDive;触发=自动;目标=最近敌人;特效=rhythm","enabled":true}}],"basicAttack":{"enabled":true,"module":"projectile","mode":"projectile","trigger":"auto","target":"nearest_enemy","style":"basketball","projectileStyle":"basketball","bounce":2,"bounceRange":260,"bounceMultiplier":0.78,"script":"模块=投射物;触发=自动;目标=最近敌人;特效=篮球;弹射=2;弹射范围=260;弹射倍率=0.78","name":"哥哥 · 普通攻击"},"placementSound":"audio/cut_蔡 徐 坤 全 部 音 效.mp3"},{"id":"dayun","name":"大运","price":650,"hp":320,"atk":36,"as":0.6,"spd":60,"moveMultiplier":1.3,"range":62,"radius":35,"role":"tank","roleLabel":"短途冲锋坦克 · 破阵/怕控制","spriteIndex":2,"spriteFacing":"right","attackStyle":"ram","color":"#ed6a5a","accent":"#f6bd60","effectSummary":"短程冲锋撞散敌人；冲锋后有停顿，怕远程与控制","skills":[{"name":"大运撞击","type":"charge","cd":16,"damage":92,"stun":0.9,"knockback":260,"bonus":0.3,"vfxStyle":"heavy","speed":480,"travelDistance":720,"pathRadius":42,"wallStun":3,"behavior":{"module":"charge","trigger":"auto","target":"nearest_enemy","style":"heavy","script":"模块=冲锋;类型=charge;触发=自动;目标=最近敌人;特效=heavy","enabled":true}},{"name":"刹车不住","type":"slowPulse","cd":22,"radius":130,"slow":0.35,"slowDuration":4.5,"vfxStyle":"heavy","behavior":{"module":"slowPulse","trigger":"auto","target":"nearest_enemy","style":"heavy","script":"模块=减速脉冲;类型=slowPulse;触发=自动;目标=最近敌人;特效=heavy","enabled":true}}],"basicAttack":{"enabled":true,"module":"melee","mode":"melee","trigger":"auto","target":"nearest_enemy","style":"ram","attackStyle":"ram","script":"模块=近战;触发=自动;目标=最近敌人;特效=冲撞","name":"大运 · 普通攻击"},"placementSound":"audio/cut_人生啊能不能放过我这一次.mp3"},{"id":"gazi","name":"嘎子","price":300,"hp":430,"atk":52,"as":0.62,"spd":70,"moveMultiplier":0.84,"range":380,"radius":30,"role":"ranged","roleLabel":"全能射手 · 白酒增幅/怕突进","combatStyle":"ranged","preferredDistance":330,"spriteIndex":3,"spriteFacing":"right","attackStyle":"rifle","projectileStyle":"rifle","color":"#4ecdc4","accent":"#efff8f","effectSummary":"远程持续射击，低血喝白酒进入高攻速；输出全面但怕突进","skills":[{"name":"喝白酒","type":"drinkLiquor","cd":60,"damage":8,"duration":1.8,"bonus":1.4,"threshold":0.55,"vfxStyle":"liquor","behavior":{"module":"drinkLiquor","trigger":"auto","target":"nearest_enemy","style":"liquor","script":"模块=喝酒增益;类型=drinkLiquor;触发=自动;目标=最近敌人;特效=liquor","enabled":true}}],"basicAttack":{"enabled":true,"module":"projectile","mode":"projectile","trigger":"auto","target":"nearest_enemy","style":"rifle","projectileStyle":"rifle","script":"模块=投射物;触发=自动;目标=最近敌人;特效=枪械","name":"嘎子 · 普通攻击"},"placementSound":"audio/cut_我Chovy，你们拿货给我拿好的啊.mp3"},{"id":"dagou","name":"大狗","price":250,"hp":500,"atk":21,"as":1,"spd":70,"moveMultiplier":1.25,"range":58,"radius":30,"role":"tank","roleLabel":"嘲讽坦克 · 拆人海/怕风筝","spriteIndex":4,"spriteFacing":"right","attackStyle":"bark","color":"#d782ba","accent":"#ffcf70","effectSummary":"嘲讽并连续冲锋；短线拆人海但技能间隔长，怕远程与集火","skills":[{"name":"大狗大狗大狗","type":"taunt","cd":10.5,"radius":240,"duration":3.2,"vfxStyle":"bark","behavior":{"module":"taunt","trigger":"auto","target":"nearby_enemies","style":"bark","script":"模块=嘲讽;类型=taunt;触发=自动;目标=周围敌人;特效=狗叫","enabled":true}},{"name":"三段冲锋","type":"multiCharge","cd":14.5,"damage":47,"stun":0.6,"knockback":0,"count":3,"delay":0.14,"vfxStyle":"dogCharge","speed":420,"travelDistance":160,"pathRadius":50,"wallStun":0.5,"passThrough":true,"behavior":{"module":"multiCharge","trigger":"auto","target":"nearest_enemy","style":"dogCharge","script":"模块=连续冲锋;类型=multiCharge;触发=自动;目标=最近敌人;特效=dogCharge;穿透=是","passThrough":true,"enabled":true}}],"basicAttack":{"enabled":true,"module":"melee","mode":"melee","trigger":"auto","target":"nearest_enemy","style":"bark","attackStyle":"bark","script":"模块=近战;触发=自动;目标=最近敌人;特效=狗叫","name":"大狗 · 普通攻击"},"placementSound":"audio/dagou.mp3"},{"id":"niulai","name":"牛来","price":200,"hp":410,"atk":28,"as":0.85,"spd":78,"moveMultiplier":1.34,"range":58,"radius":22,"role":"assassin","roleLabel":"刺客续航 · 跳后排/自疗","spriteIndex":5,"spriteFacing":"right","attackStyle":"ram","color":"#8bd450","accent":"#f2e86d","effectSummary":"跳到最远目标并自疗；能切后排续航，但怕集中火力","skills":[{"name":"跳河","type":"jumpToFarthest","cd":12,"damage":2,"radius":105,"knockback":70,"vfxStyle":"river","behavior":{"module":"jumpToFarthest","trigger":"auto","target":"farthest_enemy","style":"river","script":"模块=跳到最远目标;类型=jumpToFarthest;触发=自动;目标=最远敌人;特效=river","enabled":true}},{"name":"妈妈","type":"fullHealSelf","cd":17.1,"amount":1,"vfxStyle":"heal","behavior":{"module":"fullHealSelf","trigger":"auto","target":"self","style":"heal","script":"模块=自身满血;类型=fullHealSelf;触发=自动;目标=自己;特效=heal","enabled":true}}],"basicAttack":{"enabled":true,"module":"melee","mode":"melee","trigger":"auto","target":"nearest_enemy","style":"ram","attackStyle":"ram","script":"模块=近战;触发=自动;目标=最近敌人;特效=冲撞","name":"牛来 · 普通攻击"},"placementSound":"audio/妈妈.mp3"},{"id":"maodie","name":"圆头耄耋","price":180,"hp":300,"atk":15,"as":1.5,"spd":55,"moveMultiplier":0.9,"range":50,"radius":26,"role":"support","roleLabel":"辅助控制 · 哈气单控群缓/怕集火","combatStyle":"support","preferredDistance":165,"spriteIndex":6,"spriteFacing":"right","attackStyle":"hiss","color":"#f4a261","accent":"#f1faee","effectSummary":"响尾蛇冲锋并用哈气延长眩晕；辅助控场强但怕集火","skills":[{"name":"哈气震住","type":"hissControl","cd":10,"radius":180,"stun":1.6,"slow":0.2,"slowDuration":2.8,"vfxStyle":"hiss","behavior":{"module":"hissControl","trigger":"auto","target":"nearby_enemies","style":"hiss","script":"模块=哈气控制;类型=hissControl;触发=自动;目标=周围敌人;特效=哈气","enabled":true}},{"name":"响尾蛇冲锋","type":"charge","cd":12,"damage":36,"stun":0.8,"knockback":90,"vfxStyle":"snake","speed":520,"travelDistance":660,"pathRadius":54,"wallStun":0.7,"behavior":{"module":"charge","trigger":"auto","target":"nearest_enemy","style":"snake","script":"模块=冲锋;类型=charge;触发=自动;目标=最近敌人;特效=响尾蛇","enabled":true}}],"basicAttack":{"enabled":true,"module":"melee","mode":"melee","trigger":"auto","target":"nearest_enemy","style":"hiss","attackStyle":"hiss","script":"模块=近战;触发=自动;目标=最近敌人;特效=哈气","name":"圆头耄耋 · 普通攻击"},"placementSound":"audio/cut_圆头耄耋原视频.mp3"},{"id":"miaocuijiao","name":"妙脆角猫","price":190,"hp":190,"atk":42,"as":1.1,"spd":90,"moveMultiplier":0.92,"range":320,"radius":20,"role":"ranged","roleLabel":"强力后排 · 蓄力导弹/怕近身","combatStyle":"ranged","preferredDistance":270,"spriteIndex":7,"spriteFacing":"right","attackStyle":"claw","projectileStyle":"doritos","color":"#ffca3a","accent":"#ff595e","targetPriority":"enemy_ranged","effectSummary":"保持后排距离并蓄力发射导弹；爆发高但被近身后只能仓促自保","skills":[{"name":"发射妙脆角导弹","type":"doritosMissile","cd":0.75,"damage":68,"radius":360,"count":3,"delay":0.9,"vfxStyle":"doritos","speed":760,"behavior":{"module":"doritosMissile","trigger":"auto","target":"nearest_enemy","style":"doritos","script":"模块=妙脆角导弹;类型=doritosMissile;触发=自动;目标=最近敌人;特效=妙脆角","enabled":true}},{"name":"装填妙脆角","type":"reloadDoritos","cd":6,"duration":2.1,"count":3,"vfxStyle":"doritos","behavior":{"module":"reloadDoritos","trigger":"auto","target":"nearest_enemy","style":"doritos","script":"模块=妙脆角装填;类型=reloadDoritos;触发=自动;目标=最近敌人;特效=妙脆角","enabled":true}}],"basicAttack":{"enabled":true,"module":"projectile","mode":"projectile","trigger":"auto","target":"nearest_enemy","style":"doritos","projectileStyle":"doritos","script":"模块=投射物;触发=自动;目标=最近敌人;特效=妙脆角","name":"妙脆角猫 · 普通攻击"},"placementSound":"audio/cut_妙脆角很不高兴为你服务.mp3"},{"id":"naima","name":"奶蛙","price":220,"hp":260,"atk":0,"as":0,"spd":58,"moveMultiplier":0.92,"range":180,"radius":22,"role":"healer","roleLabel":"召唤奶妈 · 骑士护卫/优先自救","combatStyle":"support","preferredDistance":220,"spriteIndex":8,"spriteFacing":"right","attackStyle":"heal","projectileStyle":"heal","color":"#90be6d","accent":"#f9c74f","effectSummary":"只召唤近战奶娃骑士并优先治疗自己；没有攻击能力，骑士怕远程AOE","skills":[{"name":"奶娃骑士召唤","type":"summon","cd":6,"duration":36,"count":1,"vfxStyle":"magic","summonUnitId":"naima_knight","behavior":{"module":"summon","trigger":"auto","target":"self","style":"magic","script":"模块=召唤;类型=summon;触发=自动;目标=自己;特效=magic;召唤物=naima_knight","summonUnitId":"naima_knight","enabled":true}},{"name":"单体奶泡","type":"heal","cd":7.6,"radius":120,"amount":82,"vfxStyle":"heal","behavior":{"module":"heal","trigger":"auto","target":"priority_ally","style":"heal","script":"模块=治疗;类型=heal;触发=自动;目标=优先受伤队友;特效=heal","enabled":true}}],"basicAttack":{"enabled":false,"module":"melee","mode":"melee","trigger":"auto","target":"self","style":"milkBubble","attackStyle":"milkBubble","script":"模块=近战;触发=自动;目标=自己;特效=奶泡","name":"奶蛙 · 普通攻击"},"placementSound":"audio/奶龙捧腹大笑原版.mp3"},{"id":"huangsedashu","name":"黄色袋鼠","price":140,"hp":250,"atk":13,"as":1.2,"spd":110,"moveMultiplier":0.94,"range":260,"radius":24,"role":"healer","roleLabel":"远程奶妈 · 续航收割/怕前排","combatStyle":"melee","preferredDistance":220,"spriteIndex":9,"spriteFacing":"right","attackStyle":"delivery","projectileStyle":"delivery","color":"#f4d35e","accent":"#ee964b","targetPriority":"lowest_hp","effectSummary":"远程优先低血目标，并为附近一名友军补血；打不动厚前排","skills":[{"name":"袋鼠奶泡","type":"allyHealProjectile","cd":9.5,"radius":36,"amount":55,"vfxStyle":"milkBubble","behavior":{"module":"allyHealProjectile","trigger":"auto","target":"injured_ally","style":"milkBubble","script":"模块=友军治疗投射物;类型=allyHealProjectile;触发=自动;目标=受伤友军;特效=奶泡","enabled":true}},{"name":"击杀回血","type":"onKillHeal","cd":0.1,"amount":60,"vfxStyle":"heal","behavior":{"module":"onKillHeal","trigger":"auto","target":"self","style":"heal","script":"模块=击杀回血;类型=onKillHeal;触发=自动;目标=自己;特效=heal","enabled":true}}],"basicAttack":{"enabled":true,"module":"projectile","mode":"projectile","trigger":"auto","target":"lowest_hp","style":"delivery","projectileStyle":"delivery","script":"模块=投射物;触发=自动;目标=最低血量;特效=delivery","name":"黄色袋鼠 · 普通攻击"},"placementSound":"audio/cut_你胆子真是肥嘟嘟的啊，纯享版，可拿去当素材.mp3"},{"id":"gugugaga","name":"咕咕嘎嘎","price":120,"hp":190,"atk":8,"as":1.9,"spd":60,"moveMultiplier":0.88,"range":190,"radius":20,"role":"support","roleLabel":"弱远程 · 单体眩晕/怕近身","combatStyle":"support","preferredDistance":155,"spriteIndex":10,"spriteFacing":"right","attackStyle":"penguin","projectileStyle":"penguin","color":"#577590","accent":"#f9c74f","effectSummary":"弱远程投射物，单体抽搐眩晕；控制明确但生命低","skills":[{"name":"一起抽搐","type":"convulse","cd":15,"damage":12,"radius":190,"stun":1.65,"duration":1.65,"vfxStyle":"convulse","behavior":{"module":"convulse","trigger":"auto","target":"nearest_enemy","style":"convulse","script":"模块=同步抽搐;类型=convulse;触发=自动;目标=最近敌人;特效=convulse","enabled":true}}],"basicAttack":{"enabled":true,"module":"projectile","mode":"projectile","trigger":"auto","target":"nearest_enemy","style":"penguin","projectileStyle":"penguin","script":"模块=投射物;触发=自动;目标=最近敌人;特效=企鹅","name":"咕咕嘎嘎 · 普通攻击"},"placementSound":"audio/cut_不行了咕咕嘎嘎太魔性上头了.mp3"},{"id":"daodun","name":"我的刀盾","price":90,"hp":300,"atk":10,"as":1.05,"spd":82,"moveMultiplier":1.08,"range":48,"radius":28,"role":"tank","roleLabel":"便宜肉盾 · 格挡护卫/怕持续伤害","combatStyle":"melee","preferredDistance":62,"spriteIndex":11,"spriteFacing":"right","attackStyle":"shield","color":"#8d99ae","accent":"#edf2f4","reflectDamage":0,"effectSummary":"举盾减伤并驻守；能护住阵线但输出低","skills":[{"name":"盾牌防御","type":"guard","cd":6,"duration":1.2,"vfxStyle":"shield","behavior":{"module":"guard","trigger":"auto","target":"self","style":"shield","script":"模块=举盾;类型=guard;触发=自动;目标=自己;特效=盾牌","enabled":true}}],"basicAttack":{"enabled":true,"module":"melee","mode":"melee","trigger":"auto","target":"nearest_enemy","style":"shield","attackStyle":"shield","script":"模块=近战;触发=自动;目标=最近敌人;特效=盾牌","name":"我的刀盾 · 普通攻击"},"placementSound":"audio/cut_【梗百科】我的刀盾和哔哔拉布是啥梗？.mp3"},{"id":"couqie","name":"凑企鹅","price":30,"hp":110,"atk":6,"as":2.1,"spd":88,"moveMultiplier":1.32,"range":34,"radius":18,"role":"swarm","roleLabel":"廉价人海 · 克单体/怕范围","combatStyle":"melee","spriteIndex":12,"spriteFacing":"right","attackStyle":"poke","color":"#457b9d","accent":"#a8dadc","effectSummary":"飞踢突进；数量取胜但单体脆弱","skills":[{"name":"飞踢","type":"flyingKick","cd":7,"damage":28,"radius":80,"stun":0.35,"knockback":85,"vfxStyle":"kick","travelDistance":300,"behavior":{"module":"flyingKick","trigger":"auto","target":"nearest_enemy","style":"kick","script":"模块=飞踢;类型=flyingKick;触发=自动;目标=最近敌人;特效=飞踢","enabled":true}}],"basicAttack":{"enabled":true,"module":"melee","mode":"melee","trigger":"auto","target":"nearest_enemy","style":"poke","attackStyle":"poke","script":"模块=近战;触发=自动;目标=最近敌人;特效=poke","name":"凑企鹅 · 普通攻击"},"placementSound":"audio/cut_：一个视频教会大家如何咕咕嘎嘎🐧.mp3"},{"id":"naima_knight","name":"奶娃骑士","price":0,"hp":300,"atk":20,"as":1.15,"spd":76,"moveMultiplier":1,"range":48,"radius":18,"role":"tank","roleLabel":"召唤物 · 近战护卫/怕远程AOE","combatStyle":"melee","preferredDistance":56,"spriteIndex":16,"spriteFacing":"right","attackStyle":"shield","projectileStyle":"shield","color":"#f3d6a1","accent":"#90be6d","targetPriority":"nearest_enemy","summonOnly":true,"effectSummary":"奶蛙召唤的近战骑士；贴身护卫但怕远程范围","skills":[],"basicAttack":{"enabled":true,"module":"melee","mode":"melee","trigger":"auto","target":"nearest_enemy","style":"shield","attackStyle":"shield","script":"模块=近战;触发=自动;目标=最近敌人;特效=盾牌","name":"奶娃骑士 · 普通攻击"}},{"id":"maodie_orange_cat","name":"小橘猫","price":0,"hp":85,"atk":12,"as":2.1,"spd":105,"moveMultiplier":1,"range":135,"radius":16,"role":"swarm","roleLabel":"召唤物 · 远程爪痕/怕AOE","combatStyle":"ranged","preferredDistance":130,"spriteIndex":6,"spriteFacing":"right","attackStyle":"claw","projectileStyle":"claw","color":"#f4a261","accent":"#f1faee","targetPriority":"nearest_enemy","summonOnly":true,"effectSummary":"低血远程爪痕；数量便宜但怕范围","skills":[],"basicAttack":{"enabled":true,"module":"projectile","mode":"projectile","trigger":"auto","target":"nearest_enemy","style":"claw","projectileStyle":"claw","script":"模块=投射物;触发=自动;目标=最近敌人;特效=爪痕","name":"小橘猫 · 普通攻击"}},{"id":"melonboss","name":"瓜摊老板","price":280,"hp":200,"atk":22,"as":0.9,"spd":62,"moveMultiplier":0.86,"range":260,"radius":27,"role":"ranged","roleLabel":"远程小范围AOE · 克人海/怕刺客","combatStyle":"ranged","preferredDistance":220,"spriteIndex":13,"spriteFacing":"right","attackStyle":"melon","projectileStyle":"watermelon","color":"#bd5d4a","accent":"#f7c873","effectSummary":"远程少量投瓜并爆炸减速；清人海强但怕切后排","skills":[{"name":"西瓜炸弹","type":"pulse","cd":5,"damage":120,"radius":130,"knockback":70,"slow":0.2,"slowDuration":3.2,"vfxStyle":"melon","behavior":{"module":"pulse","trigger":"auto","target":"nearest_enemy","style":"melon","script":"模块=脉冲;类型=pulse;触发=自动;目标=最近敌人;特效=西瓜","enabled":true}}],"basicAttack":{"enabled":true,"module":"projectile","mode":"projectile","trigger":"auto","target":"nearest_enemy","style":"watermelon","projectileStyle":"watermelon","script":"模块=投射物;触发=自动;目标=最近敌人;特效=西瓜弹","name":"瓜摊老板 · 普通攻击"},"placementSound":"audio/cut_这瓜保熟吗（原视频） (1).mp3"},{"id":"boss_guasheng","name":"邪恶大西瓜","price":0,"hp":1100,"atk":30,"as":0.85,"spd":52,"moveMultiplier":0.7,"range":280,"radius":42,"role":"enemy","roleLabel":"BOSS · 吐籽远程压制/怕突击","combatStyle":"ranged","preferredDistance":235,"spriteIndex":14,"spriteFacing":"right","attackStyle":"melon","projectileStyle":"seed","color":"#4f873c","accent":"#b8d764","enemyOnly":true,"effectSummary":"张嘴吐籽进行远程压制，并用藤蔓减速；近身后较脆弱","skills":[{"name":"籽雨喷射","type":"pulse","cd":10,"damage":52,"radius":145,"knockback":85,"slow":0.24,"slowDuration":3.4,"vfxStyle":"melon","behavior":{"module":"pulse","trigger":"auto","target":"nearest_enemy","style":"melon","script":"模块=脉冲;类型=pulse;触发=自动;目标=最近敌人;特效=西瓜","enabled":true}},{"name":"藤蔓缠绕","type":"slowPulse","cd":15,"radius":190,"slow":0.3,"slowDuration":4.6,"vfxStyle":"heavy","behavior":{"module":"slowPulse","trigger":"auto","target":"nearest_enemy","style":"heavy","script":"模块=减速脉冲;类型=slowPulse;触发=自动;目标=最近敌人;特效=heavy","enabled":true}}],"basicAttack":{"enabled":true,"module":"projectile","mode":"projectile","trigger":"auto","target":"nearest_enemy","style":"seed","projectileStyle":"seed","script":"模块=投射物;触发=自动;目标=最近敌人;特效=西瓜籽","name":"邪恶大西瓜 · 普通攻击"}},{"id":"boss_baijiu","name":"邪恶大篮球","price":0,"hp":1250,"atk":38,"as":0.78,"spd":58,"moveMultiplier":1.05,"range":72,"radius":44,"role":"enemy","roleLabel":"BOSS · 斜飞踹突击/怕风筝","combatStyle":"melee","preferredDistance":58,"spriteIndex":15,"spriteFacing":"right","attackStyle":"kick","color":"#e97824","accent":"#f3ad59","enemyOnly":true,"effectSummary":"斜向飞踹突进、制造篮板震荡并蓄力恢复；近身压迫强但怕远程风筝","skills":[{"name":"飞身斜踹","type":"charge","cd":14,"damage":110,"stun":1.1,"knockback":250,"vfxStyle":"kick","speed":460,"travelDistance":420,"pathRadius":54,"wallStun":8,"behavior":{"module":"charge","trigger":"auto","target":"nearest_enemy","style":"kick","script":"模块=冲锋;类型=charge;触发=自动;目标=最近敌人;特效=飞踢","enabled":true}},{"name":"篮板震荡","type":"slowPulse","cd":18,"radius":175,"slow":0.25,"slowDuration":4.2,"vfxStyle":"heavy","behavior":{"module":"slowPulse","trigger":"auto","target":"nearest_enemy","style":"heavy","script":"模块=减速脉冲;类型=slowPulse;触发=自动;目标=最近敌人;特效=heavy","enabled":true}},{"name":"蓄力回弹","type":"fullHealSelf","cd":22.8,"amount":0.16,"vfxStyle":"heal","behavior":{"module":"heal","trigger":"auto","target":"self","style":"heal","script":"模块=治疗;类型=fullHealSelf;触发=自动;目标=自己;特效=heal","enabled":true}}],"basicAttack":{"enabled":true,"module":"melee","mode":"melee","trigger":"auto","target":"nearest_enemy","style":"kick","attackStyle":"kick","script":"模块=近战;触发=自动;目标=最近敌人;特效=飞踢","name":"邪恶大篮球 · 普通攻击"}},{"id":"boss_mecha_melon","name":"机械瓜摊老板","price":0,"hp":980,"atk":38,"as":0.92,"spd":46,"moveMultiplier":0.76,"range":310,"radius":46,"role":"enemy","roleLabel":"机械BOSS · 爆炸压制/磁力控场","combatStyle":"ranged","preferredDistance":270,"spriteIndex":17,"spriteFacing":"right","attackStyle":"melon","projectileStyle":"watermelon","color":"#547b50","accent":"#f2d36b","enemyOnly":true,"effectSummary":"普攻小范围爆炸；生瓜投掷眩晕，磁场减速","skills":[{"name":"生瓜蛋子","type":"seedBomb","cd":8.5,"damage":58,"radius":118,"stun":1.25,"vfxStyle":"melon","speed":430,"behavior":{"module":"seedBomb","trigger":"auto","target":"nearest_enemy","style":"melon","script":"模块=生瓜投掷;类型=seedBomb;触发=自动;目标=最近敌人;特效=西瓜","enabled":true}},{"name":"磁力场","type":"slowPulse","cd":17,"radius":210,"slow":0.34,"slowDuration":3.8,"vfxStyle":"heavy","behavior":{"module":"slowPulse","trigger":"auto","target":"nearby_enemies","style":"heavy","script":"模块=减速脉冲;类型=slowPulse;触发=自动;目标=周围敌人;特效=heavy","enabled":true}}],"basicAttack":{"enabled":true,"module":"projectile","mode":"projectile","trigger":"auto","target":"nearest_enemy","style":"watermelon","projectileStyle":"watermelon","script":"模块=投射物;触发=自动;目标=最近敌人;特效=西瓜弹","name":"机械瓜摊老板 · 普通攻击","splashRadius":76,"projectileSpeed":470}},{"id":"boss_mecha_huaqiang","name":"机械华强","price":0,"hp":1160,"atk":46,"as":0.76,"spd":60,"moveMultiplier":0.94,"range":360,"radius":48,"role":"enemy","roleLabel":"机械BOSS · 枪击压制/直线冲锋","combatStyle":"ranged","preferredDistance":300,"spriteIndex":18,"spriteFacing":"right","attackStyle":"rifle","projectileStyle":"rifle","color":"#48535a","accent":"#f28b43","enemyOnly":true,"effectSummary":"枪械单点射击；榴弹锁定最远敌人，直线冲锋眩晕","skills":[{"name":"最远点榴弹","type":"farthestGrenade","cd":11,"damage":150,"radius":132,"vfxStyle":"heavy","speed":560,"behavior":{"module":"farthestGrenade","trigger":"auto","target":"farthest_enemy","style":"heavy","script":"模块=最远点榴弹;类型=farthestGrenade;触发=自动;目标=最远敌人;特效=heavy","enabled":true}},{"name":"穿阵冲锋","type":"charge","cd":16,"damage":84,"stun":1.1,"knockback":0,"vfxStyle":"heavy","speed":650,"travelDistance":2200,"pathRadius":58,"wallStun":0.75,"passThrough":true,"behavior":{"module":"charge","trigger":"auto","target":"nearest_enemy","style":"heavy","script":"模块=冲锋;类型=charge;触发=自动;目标=最近敌人;特效=heavy;穿透=是","passThrough":true,"enabled":true}}],"basicAttack":{"enabled":true,"module":"projectile","mode":"projectile","trigger":"auto","target":"nearest_enemy","style":"rifle","projectileStyle":"rifle","script":"模块=投射物;触发=自动;目标=最近敌人;特效=枪械","name":"机械华强 · 普通攻击","projectileSpeed":720}}]},"./data/levels.json":{"levels":[{"id":1,"name":"华强买瓜","subtitle":"教学 · 近战与廉价人海","budget":600,"tip":"贵的单位不一定最优。试试用一只嘎子稳住阵线，再让奶蛙续航。","deploymentClearancePx":2,"deploymentOverlapPercent":20,"enemies":[{"unitId":"melonboss","count":1,"instanceId":"l1-melonboss-editor-01","spawnX":1400,"spawnY":720},{"unitId":"melonboss","count":1,"instanceId":"l1-melonboss-editor-02","spawnX":1420,"spawnY":80}],"playerDeployZones":[{"id":"player-zone-1","points":[{"x":42,"y":42},{"x":42,"y":778},{"x":780,"y":778},{"x":772,"y":42}]}]},{"id":2,"name":"叮咚鸡","subtitle":"冲锋破阵 · 后排 AOE","budget":800,"tip":"大运可以把敌人撞散，蔡徐坤站在后排会更舒服。纯人海会被大狗的嘲讽和连续冲锋拖住。","deploymentClearancePx":2,"deploymentOverlapPercent":20,"enemies":[{"unitId":"dagou","count":1,"instanceId":"dagou-03","spawnX":1240,"spawnY":500,"overrides":{"hp":300,"atk":20}},{"unitId":"dagou","count":1,"instanceId":"dagou-04","spawnX":1240,"spawnY":300,"overrides":{"hp":300,"atk":20}},{"unitId":"dagou","count":1,"instanceId":"l2-dagou-editor-02","spawnX":1400,"spawnY":400}],"playerDeployZones":[{"id":"player-zone-1","points":[{"x":42,"y":42},{"x":798,"y":42},{"x":793,"y":778},{"x":42,"y":778}]}]},{"id":3,"name":"牛来票房","subtitle":"难度 1 · 人海与后排火力","budget":1000,"tip":"前排人海可以拖住牛来，后排哥哥负责稳定输出；只堆近战会被远程火力消耗。","deploymentClearancePx":2,"deploymentOverlapPercent":20,"enemies":[{"unitId":"niulai","count":1,"instanceId":"l3-niulai-editor-02","spawnX":1180,"spawnY":540},{"unitId":"niulai","count":1,"instanceId":"l3-niulai-editor-01","spawnX":1040,"spawnY":400},{"unitId":"niulai","count":1,"instanceId":"l3-niulai-editor-03","spawnX":1320,"spawnY":400},{"unitId":"niulai","count":1,"instanceId":"l3-niulai-editor-04","spawnX":1180,"spawnY":280}],"playerDeployZones":[{"id":"player-zone-1","points":[{"x":90,"y":120},{"x":760,"y":120},{"x":760,"y":610},{"x":90,"y":610}]}]},{"id":4,"name":"抽象乱斗","subtitle":"难度 2 · 混合编队与控制窗口","budget":1150,"tip":"大运顶在中路，咕咕嘎嘎负责控场；嘎子和奶蛙留在后排，别让远程抢到第一线。","deploymentClearancePx":2,"deploymentOverlapPercent":20,"enemies":[{"unitId":"couqie","count":1,"instanceId":"l4-couqie-editor-01","spawnX":960,"spawnY":320},{"unitId":"couqie","count":1,"instanceId":"l4-couqie-editor-02","spawnX":960,"spawnY":500},{"unitId":"couqie","count":1,"instanceId":"l4-couqie-editor-03","spawnX":960,"spawnY":160},{"unitId":"couqie","count":1,"instanceId":"l4-couqie-editor-04","spawnX":960,"spawnY":680},{"unitId":"couqie","count":1,"instanceId":"l4-couqie-01","spawnX":1040,"spawnY":250,"overrides":{"hp":100,"atk":5}},{"unitId":"couqie","count":1,"instanceId":"l4-couqie-02","spawnX":1040,"spawnY":570,"overrides":{"hp":100,"atk":5}},{"unitId":"gugugaga","count":1,"instanceId":"l4-gugugaga-01","spawnX":1160,"spawnY":280},{"unitId":"gugugaga","count":1,"instanceId":"l4-gugugaga-02","spawnX":1160,"spawnY":540},{"unitId":"naima","count":1,"instanceId":"l4-naima-editor-02","spawnX":1440,"spawnY":400},{"unitId":"naima","count":1,"instanceId":"l4-naima-editor-01","spawnX":1420,"spawnY":200},{"unitId":"naima","count":1,"instanceId":"l4-naima-editor-03","spawnX":1440,"spawnY":620},{"unitId":"naima","count":1,"instanceId":"l4-naima-editor-04","spawnX":1280,"spawnY":400}],"playerDeployZones":[{"id":"player-zone-1","points":[{"x":90,"y":120},{"x":760,"y":120},{"x":760,"y":610},{"x":90,"y":610}]}]},{"id":5,"name":"鸡你太美","subtitle":"难度 3 · 远程交叉火力","budget":1300,"tip":"大狗顶住第一线，刀盾护住中路；远程火力怕刺客切入，但厚前排会拖慢收割。","deploymentClearancePx":2,"deploymentOverlapPercent":20,"enemies":[{"unitId":"daodun","count":1,"instanceId":"l5-daodun-editor-01","spawnX":1040,"spawnY":540},{"unitId":"daodun","count":1,"instanceId":"l5-daodun-01","spawnX":1040,"spawnY":250,"overrides":{"hp":320}},{"unitId":"caixukun","count":1,"instanceId":"l5-caixukun-01","spawnX":1400,"spawnY":180,"overrides":{"hp":230,"atk":18}},{"unitId":"caixukun","count":1,"instanceId":"l5-caixukun-02","spawnX":1400,"spawnY":640,"overrides":{"hp":230,"atk":18}},{"unitId":"caixukun","count":1,"instanceId":"l5-caixukun-editor-03","spawnX":1320,"spawnY":480},{"unitId":"caixukun","count":1,"instanceId":"l5-caixukun-editor-04","spawnX":1320,"spawnY":320}],"playerDeployZones":[{"id":"player-zone-1","points":[{"x":90,"y":120},{"x":760,"y":120},{"x":760,"y":610},{"x":90,"y":610}]}]},{"id":6,"name":"第一道门","subtitle":"难度 4 · 冲锋、护盾与控制","budget":1450,"tip":"大运和大狗在前排接战，刀盾卡住侧翼；控制单位不能单独承伤，要让输出保持后排距离。","deploymentClearancePx":2,"deploymentOverlapPercent":20,"enemies":[{"unitId":"huaqiang","count":1,"instanceId":"l6-huaqiang-01","spawnX":100,"spawnY":60,"overrides":{"hp":320,"atk":32}},{"unitId":"huaqiang","count":1,"instanceId":"l6-huaqiang-editor-01","spawnX":120,"spawnY":720},{"unitId":"huaqiang","count":1,"instanceId":"l6-huaqiang-editor-02","spawnX":800,"spawnY":400},{"unitId":"huaqiang","count":1,"instanceId":"l6-huaqiang-editor-03","spawnX":1520,"spawnY":720},{"unitId":"huaqiang","count":1,"instanceId":"l6-huaqiang-editor-04","spawnX":1520,"spawnY":80}],"playerDeployZones":[{"id":"player-zone-1","points":[{"x":399,"y":239},{"x":1198,"y":232},{"x":1207,"y":562},{"x":397,"y":564}]}]},{"id":7,"name":"传送门失控","subtitle":"难度 5 · 切后排与控制链","budget":1600,"tip":"华强和牛来会打乱后排，咕咕嘎嘎负责打断；保持前中后三层，别让远程先吃到突进。","deploymentClearancePx":2,"deploymentOverlapPercent":20,"enemies":[{"unitId":"niulai","count":1,"instanceId":"l7-niulai-editor-01","spawnX":1060,"spawnY":660},{"unitId":"huaqiang","count":1,"instanceId":"l7-huaqiang-01","spawnX":600,"spawnY":280},{"unitId":"huaqiang","count":1,"instanceId":"l7-huaqiang-editor-01","spawnX":820,"spawnY":660},{"unitId":"dagou","count":1,"instanceId":"l7-dagou-01","spawnX":300,"spawnY":520},{"unitId":"gugugaga","count":1,"instanceId":"l7-gugugaga-01","spawnX":1020,"spawnY":220},{"unitId":"gugugaga","count":1,"instanceId":"l7-gugugaga-02","spawnX":620,"spawnY":700},{"unitId":"naima","count":1,"instanceId":"l7-naima-01","spawnX":1260,"spawnY":680},{"unitId":"niulai","count":1,"instanceId":"l7-niulai-editor-02","spawnX":900,"spawnY":560},{"unitId":"niulai","count":1,"instanceId":"l7-niulai-editor-03","spawnX":700,"spawnY":120}],"playerDeployZones":[{"id":"player-zone-2","points":[{"x":82,"y":79},{"x":241,"y":79},{"x":563,"y":405},{"x":879,"y":78},{"x":1280,"y":82},{"x":879,"y":156},{"x":640,"y":410},{"x":1514,"y":82},{"x":798,"y":405},{"x":1518,"y":319},{"x":1363,"y":404},{"x":1516,"y":720},{"x":1282,"y":481},{"x":799,"y":478},{"x":76,"y":777},{"x":693,"y":467},{"x":175,"y":471},{"x":497,"y":427},{"x":90,"y":125}]}]},{"id":8,"name":"召唤超市","subtitle":"难度 6 · 召唤流反制课","budget":1750,"tip":"大狗和刀盾在前排，耄耋与咕咕嘎嘎在中排，瓜老板和奶蛙在后排；范围伤害是破解召唤物的关键。","deploymentClearancePx":2,"deploymentOverlapPercent":20,"enemies":[{"unitId":"dagou","count":1,"instanceId":"l8-dagou-editor-01","spawnX":680,"spawnY":620},{"unitId":"melonboss","count":1,"instanceId":"l8-melonboss-editor-01","spawnX":1140,"spawnY":720},{"unitId":"melonboss","count":1,"instanceId":"l8-melonboss-editor-02","spawnX":1060,"spawnY":160},{"unitId":"dayun","count":1,"instanceId":"l8-dayun-editor-01","spawnX":320,"spawnY":700},{"unitId":"naima","count":1,"instanceId":"l8-naima-editor-01","spawnX":420,"spawnY":220},{"unitId":"naima","count":1,"instanceId":"l8-naima-editor-02","spawnX":480,"spawnY":620},{"unitId":"naima","count":1,"instanceId":"l8-naima-editor-03","spawnX":1320,"spawnY":100},{"unitId":"dagou","count":1,"instanceId":"l8-dagou-01","spawnX":220,"spawnY":200,"overrides":{"hp":560}},{"unitId":"couqie","count":1,"instanceId":"l8-couqie-01","spawnX":960,"spawnY":220},{"unitId":"couqie","count":1,"instanceId":"l8-couqie-02","spawnX":320,"spawnY":280},{"unitId":"couqie","count":1,"instanceId":"l8-couqie-03","spawnX":1020,"spawnY":680},{"unitId":"maodie","count":1,"instanceId":"l8-maodie-01","spawnX":1240,"spawnY":250},{"unitId":"maodie","count":1,"instanceId":"l8-maodie-02","spawnX":560,"spawnY":520}],"playerDeployZones":[{"id":"player-zone-2","points":[{"x":42,"y":56},{"x":149,"y":62},{"x":144,"y":427},{"x":725,"y":423},{"x":732,"y":71},{"x":872,"y":60},{"x":841,"y":423},{"x":1455,"y":390},{"x":1471,"y":47},{"x":1558,"y":42},{"x":1547,"y":778},{"x":1475,"y":778},{"x":847,"y":477},{"x":844,"y":767},{"x":728,"y":762},{"x":724,"y":474},{"x":148,"y":482},{"x":141,"y":759},{"x":52,"y":763}]}]},{"id":9,"name":"红蓝对冲","subtitle":"难度 7 · 刺客与多线压力","budget":1900,"tip":"大运、大狗和刀盾稳住前线，后排要有范围与点杀两种输出；刺客怕人海，远程怕突脸。","deploymentClearancePx":2,"deploymentOverlapPercent":20,"enemies":[{"unitId":"dayun","count":1,"instanceId":"l9-dayun-01","spawnX":940,"spawnY":200,"overrides":{"hp":340}},{"unitId":"dayun","count":1,"instanceId":"l9-dayun-editor-01","spawnX":940,"spawnY":540},{"unitId":"dayun","count":1,"instanceId":"l9-dayun-editor-02","spawnX":940,"spawnY":360},{"unitId":"couqie","count":1,"instanceId":"l9-couqie-editor-01","spawnX":1100,"spawnY":60},{"unitId":"couqie","count":1,"instanceId":"l9-couqie-editor-02","spawnX":1100,"spawnY":160},{"unitId":"couqie","count":1,"instanceId":"l9-couqie-editor-03","spawnX":1100,"spawnY":240},{"unitId":"couqie","count":1,"instanceId":"l9-couqie-editor-04","spawnX":1100,"spawnY":320},{"unitId":"couqie","count":1,"instanceId":"l9-couqie-editor-05","spawnX":1080,"spawnY":380},{"unitId":"couqie","count":1,"instanceId":"l9-couqie-editor-06","spawnX":1080,"spawnY":460},{"unitId":"couqie","count":1,"instanceId":"l9-couqie-editor-07","spawnX":1080,"spawnY":520},{"unitId":"couqie","count":1,"instanceId":"l9-couqie-editor-08","spawnX":1060,"spawnY":580},{"unitId":"couqie","count":1,"instanceId":"l9-couqie-editor-09","spawnX":1060,"spawnY":680},{"unitId":"couqie","count":1,"instanceId":"l9-couqie-editor-10","spawnX":1060,"spawnY":740},{"unitId":"couqie","count":1,"instanceId":"l9-couqie-editor-11","spawnX":1180,"spawnY":60},{"unitId":"couqie","count":1,"instanceId":"l9-couqie-editor-12","spawnX":1180,"spawnY":140},{"unitId":"couqie","count":1,"instanceId":"l9-couqie-editor-13","spawnX":1180,"spawnY":200},{"unitId":"couqie","count":1,"instanceId":"l9-couqie-editor-14","spawnX":1180,"spawnY":280},{"unitId":"couqie","count":1,"instanceId":"l9-couqie-editor-15","spawnX":1160,"spawnY":380},{"unitId":"couqie","count":1,"instanceId":"l9-couqie-editor-16","spawnX":1160,"spawnY":460},{"unitId":"couqie","count":1,"instanceId":"l9-couqie-editor-17","spawnX":1160,"spawnY":540},{"unitId":"couqie","count":1,"instanceId":"l9-couqie-editor-18","spawnX":1160,"spawnY":620},{"unitId":"couqie","count":1,"instanceId":"l9-couqie-editor-19","spawnX":1140,"spawnY":680},{"unitId":"couqie","count":1,"instanceId":"l9-couqie-editor-20","spawnX":1260,"spawnY":140},{"unitId":"couqie","count":1,"instanceId":"l9-couqie-editor-21","spawnX":1260,"spawnY":340},{"unitId":"couqie","count":1,"instanceId":"l9-couqie-editor-22","spawnX":1260,"spawnY":440},{"unitId":"couqie","count":1,"instanceId":"l9-couqie-editor-23","spawnX":1260,"spawnY":560},{"unitId":"couqie","count":1,"instanceId":"l9-couqie-editor-24","spawnX":1260,"spawnY":640},{"unitId":"couqie","count":1,"instanceId":"l9-couqie-editor-25","spawnX":1280,"spawnY":220},{"unitId":"miaocuijiao","count":1,"instanceId":"l9-miaocuijiao-editor-01","spawnX":1420,"spawnY":220},{"unitId":"miaocuijiao","count":1,"instanceId":"l9-miaocuijiao-editor-02","spawnX":1420,"spawnY":480}],"playerDeployZones":[{"id":"player-zone-1","points":[{"x":90,"y":120},{"x":760,"y":120},{"x":760,"y":610},{"x":90,"y":610}]}]},{"id":10,"name":"瓜摊王座","subtitle":"BOSS 1 · 单核首领与护卫阵","budget":3050,"tip":"首领瓜老板拥有高生命与范围投瓜，前排护卫会争取时间；带一个能切后排或稳定远程的解题单位。","deploymentClearancePx":2,"deploymentOverlapPercent":20,"enemies":[{"unitId":"daodun","count":1,"instanceId":"l10-daodun-editor-01","spawnX":900,"spawnY":640},{"unitId":"melonboss","count":1,"instanceId":"l10-melonboss-editor-04","spawnX":1420,"spawnY":200},{"unitId":"melonboss","count":1,"instanceId":"l10-melonboss-editor-05","spawnX":1440,"spawnY":580},{"unitId":"melonboss","count":1,"instanceId":"l10-melonboss-editor-06","spawnX":1300,"spawnY":100},{"unitId":"melonboss","count":1,"instanceId":"l10-melonboss-editor-07","spawnX":1320,"spawnY":720},{"unitId":"melonboss","count":1,"instanceId":"l10-melonboss-editor-10","spawnX":1300,"spawnY":500},{"unitId":"daodun","count":1,"instanceId":"l10-daodun-01","spawnX":920,"spawnY":420,"overrides":{"hp":370}},{"unitId":"boss_guasheng","count":1,"instanceId":"l10-boss-guasheng","spawnX":1500,"spawnY":400,"overrides":{"hp":1300,"atk":32,"as":0.82,"range":290}},{"unitId":"daodun","count":1,"instanceId":"l10-daodun-editor-02","spawnX":940,"spawnY":180},{"unitId":"daodun","count":1,"instanceId":"l10-daodun-editor-03","spawnX":1040,"spawnY":300},{"unitId":"daodun","count":1,"instanceId":"l10-daodun-editor-04","spawnX":1020,"spawnY":540},{"unitId":"daodun","count":1,"instanceId":"l10-daodun-editor-05","spawnX":1040,"spawnY":100},{"unitId":"daodun","count":1,"instanceId":"l10-daodun-editor-06","spawnX":1040,"spawnY":700},{"unitId":"melonboss","count":1,"instanceId":"l10-melonboss-editor-02","spawnX":1300,"spawnY":300}],"playerDeployZones":[{"id":"player-zone-1","points":[{"x":90,"y":120},{"x":760,"y":120},{"x":760,"y":610},{"x":90,"y":610}]}]},{"id":11,"name":"双核推进","subtitle":"难度 8 · 双坦克与持续火力","budget":2200,"tip":"两个前排核心会轮流吸收伤害，中后排输出要分散站位；先处理治疗，再拆掉双核。","deploymentClearancePx":2,"deploymentOverlapPercent":20,"enemies":[{"unitId":"miaocuijiao","count":1,"instanceId":"l11-miaocuijiao-editor-01","spawnX":1360,"spawnY":180},{"unitId":"miaocuijiao","count":1,"instanceId":"l11-miaocuijiao-editor-02","spawnX":1360,"spawnY":300},{"unitId":"miaocuijiao","count":1,"instanceId":"l11-miaocuijiao-editor-03","spawnX":1380,"spawnY":420},{"unitId":"miaocuijiao","count":1,"instanceId":"l11-miaocuijiao-editor-04","spawnX":1380,"spawnY":540},{"unitId":"daodun","count":1,"instanceId":"l11-daodun-editor-01","spawnX":1000,"spawnY":220},{"unitId":"daodun","count":1,"instanceId":"l11-daodun-editor-03","spawnX":980,"spawnY":520},{"unitId":"naima","count":1,"instanceId":"l11-naima-editor-01","spawnX":1140,"spawnY":200},{"unitId":"naima","count":1,"instanceId":"l11-naima-editor-02","spawnX":1140,"spawnY":320},{"unitId":"naima","count":1,"instanceId":"l11-naima-editor-03","spawnX":1140,"spawnY":420},{"unitId":"naima","count":1,"instanceId":"l11-naima-editor-04","spawnX":1120,"spawnY":500},{"unitId":"naima","count":1,"instanceId":"l11-naima-editor-05","spawnX":1120,"spawnY":620},{"unitId":"couqie","count":1,"instanceId":"l11-couqie-editor-01","spawnX":980,"spawnY":100},{"unitId":"couqie","count":1,"instanceId":"l11-couqie-editor-02","spawnX":980,"spawnY":740},{"unitId":"couqie","count":1,"instanceId":"l11-couqie-editor-03","spawnX":1500,"spawnY":60},{"unitId":"couqie","count":1,"instanceId":"l11-couqie-editor-04","spawnX":1500,"spawnY":700},{"unitId":"couqie","count":1,"instanceId":"l11-couqie-editor-05","spawnX":1500,"spawnY":280},{"unitId":"couqie","count":1,"instanceId":"l11-couqie-editor-06","spawnX":1500,"spawnY":480},{"unitId":"naima","count":1,"instanceId":"l11-naima-editor-06","spawnX":1220,"spawnY":300},{"unitId":"naima","count":1,"instanceId":"l11-naima-editor-07","spawnX":1220,"spawnY":520},{"unitId":"naima","count":1,"instanceId":"l11-naima-editor-08","spawnX":1200,"spawnY":640},{"unitId":"naima","count":1,"instanceId":"l11-naima-editor-09","spawnX":1240,"spawnY":400},{"unitId":"naima","count":1,"instanceId":"l11-naima-editor-10","spawnX":1220,"spawnY":180}],"playerDeployZones":[{"id":"player-zone-1","points":[{"x":90,"y":120},{"x":760,"y":120},{"x":760,"y":610},{"x":90,"y":610}]}]},{"id":12,"name":"三路封锁","subtitle":"难度 9 · 前排密度与远程火力","budget":2950,"tip":"前排不止一层，单个大运会被拖住；用范围控制清掉缝隙，再用刺客处理后排。","deploymentClearancePx":2,"deploymentOverlapPercent":20,"enemies":[{"unitId":"couqie","count":1,"instanceId":"l12-couqie-editor-01","spawnX":120,"spawnY":180},{"unitId":"couqie","count":1,"instanceId":"l12-couqie-editor-02","spawnX":140,"spawnY":340},{"unitId":"couqie","count":1,"instanceId":"l12-couqie-editor-03","spawnX":120,"spawnY":540},{"unitId":"couqie","count":1,"instanceId":"l12-couqie-editor-04","spawnX":100,"spawnY":720},{"unitId":"couqie","count":1,"instanceId":"l12-couqie-editor-05","spawnX":240,"spawnY":760},{"unitId":"daodun","count":1,"instanceId":"l12-daodun-editor-01","spawnX":660,"spawnY":220},{"unitId":"daodun","count":1,"instanceId":"l12-daodun-editor-02","spawnX":1100,"spawnY":220},{"unitId":"daodun","count":1,"instanceId":"l12-daodun-editor-03","spawnX":1200,"spawnY":340},{"unitId":"daodun","count":1,"instanceId":"l12-daodun-editor-04","spawnX":1200,"spawnY":620},{"unitId":"daodun","count":1,"instanceId":"l12-daodun-editor-05","spawnX":1100,"spawnY":700},{"unitId":"daodun","count":1,"instanceId":"l12-daodun-editor-06","spawnX":660,"spawnY":700},{"unitId":"couqie","count":1,"instanceId":"l12-couqie-editor-06","spawnX":520,"spawnY":720},{"unitId":"couqie","count":1,"instanceId":"l12-couqie-editor-07","spawnX":240,"spawnY":100},{"unitId":"couqie","count":1,"instanceId":"l12-couqie-editor-08","spawnX":460,"spawnY":100},{"unitId":"couqie","count":1,"instanceId":"l12-couqie-editor-09","spawnX":840,"spawnY":100},{"unitId":"couqie","count":1,"instanceId":"l12-couqie-editor-10","spawnX":1100,"spawnY":100},{"unitId":"couqie","count":1,"instanceId":"l12-couqie-editor-11","spawnX":1420,"spawnY":100},{"unitId":"couqie","count":1,"instanceId":"l12-couqie-editor-12","spawnX":1500,"spawnY":220},{"unitId":"couqie","count":1,"instanceId":"l12-couqie-editor-13","spawnX":1480,"spawnY":420},{"unitId":"couqie","count":1,"instanceId":"l12-couqie-editor-14","spawnX":1480,"spawnY":600},{"unitId":"couqie","count":1,"instanceId":"l12-couqie-editor-15","spawnX":1400,"spawnY":680},{"unitId":"couqie","count":1,"instanceId":"l12-couqie-editor-16","spawnX":1220,"spawnY":700},{"unitId":"couqie","count":1,"instanceId":"l12-couqie-editor-17","spawnX":880,"spawnY":700},{"unitId":"miaocuijiao","count":1,"instanceId":"l12-miaocuijiao-editor-01","spawnX":260,"spawnY":240},{"unitId":"miaocuijiao","count":1,"instanceId":"l12-miaocuijiao-editor-02","spawnX":260,"spawnY":540},{"unitId":"miaocuijiao","count":1,"instanceId":"l12-miaocuijiao-editor-05","spawnX":1380,"spawnY":200},{"unitId":"miaocuijiao","count":1,"instanceId":"l12-miaocuijiao-editor-06","spawnX":1380,"spawnY":480},{"unitId":"naima","count":1,"instanceId":"l12-naima-editor-01","spawnX":1280,"spawnY":260},{"unitId":"daodun","count":1,"instanceId":"l12-daodun-editor-07","spawnX":540,"spawnY":580},{"unitId":"daodun","count":1,"instanceId":"l12-daodun-editor-08","spawnX":540,"spawnY":340},{"unitId":"naima","count":1,"instanceId":"l12-naima-editor-02","spawnX":1280,"spawnY":520},{"unitId":"naima","count":1,"instanceId":"l12-naima-editor-04","spawnX":400,"spawnY":240},{"unitId":"naima","count":1,"instanceId":"l12-naima-editor-03","spawnX":420,"spawnY":540}],"playerDeployZones":[{"id":"player-zone-1","points":[{"x":630,"y":319},{"x":1128,"y":294},{"x":1125,"y":633},{"x":656,"y":632}]}]},{"id":13,"name":"冲锋风暴","subtitle":"难度 10 · 多重冲锋与刺杀","budget":2600,"tip":"冲锋会把阵线切开，前排需要互相补位；刺客负责抓远程，但遇到人海会失去爆发空间。","deploymentClearancePx":2,"deploymentOverlapPercent":20,"enemies":[{"unitId":"dayun","count":1,"instanceId":"l13-dayun-01","spawnX":1500,"spawnY":220,"overrides":{"hp":300,"atk":30}},{"unitId":"dayun","count":1,"instanceId":"l13-dayun-02","spawnX":1460,"spawnY":640,"overrides":{"hp":240,"atk":20}},{"unitId":"couqie","count":1,"instanceId":"l13-couqie-10","spawnX":1050,"spawnY":240,"overrides":{"hp":40,"atk":2}},{"unitId":"couqie","count":1,"instanceId":"l13-couqie-11","spawnX":1050,"spawnY":740,"overrides":{"hp":40,"atk":2}},{"unitId":"couqie","count":1,"instanceId":"l13-couqie-editor-06","spawnX":1100,"spawnY":620},{"unitId":"couqie","count":1,"instanceId":"l13-couqie-editor-07","spawnX":1060,"spawnY":580},{"unitId":"couqie","count":1,"instanceId":"l13-couqie-editor-08","spawnX":1060,"spawnY":500},{"unitId":"couqie","count":1,"instanceId":"l13-couqie-editor-09","spawnX":1100,"spawnY":460},{"unitId":"couqie","count":1,"instanceId":"l13-couqie-editor-10","spawnX":980,"spawnY":420},{"unitId":"couqie","count":1,"instanceId":"l13-couqie-editor-11","spawnX":1000,"spawnY":360},{"unitId":"couqie","count":1,"instanceId":"l13-couqie-editor-12","spawnX":980,"spawnY":280},{"unitId":"couqie","count":1,"instanceId":"l13-couqie-editor-13","spawnX":960,"spawnY":180},{"unitId":"couqie","count":1,"instanceId":"l13-couqie-editor-14","spawnX":1000,"spawnY":120},{"unitId":"couqie","count":1,"instanceId":"l13-couqie-editor-15","spawnX":1060,"spawnY":160},{"unitId":"couqie","count":1,"instanceId":"l13-couqie-editor-16","spawnX":1080,"spawnY":340},{"unitId":"couqie","count":1,"instanceId":"l13-couqie-editor-17","spawnX":1060,"spawnY":400},{"unitId":"couqie","count":1,"instanceId":"l13-couqie-editor-18","spawnX":1040,"spawnY":440},{"unitId":"couqie","count":1,"instanceId":"l13-couqie-editor-19","spawnX":980,"spawnY":580},{"unitId":"couqie","count":1,"instanceId":"l13-couqie-editor-20","spawnX":960,"spawnY":620},{"unitId":"couqie","count":1,"instanceId":"l13-couqie-editor-21","spawnX":920,"spawnY":460},{"unitId":"couqie","count":1,"instanceId":"l13-couqie-editor-22","spawnX":940,"spawnY":260},{"unitId":"couqie","count":1,"instanceId":"l13-couqie-editor-23","spawnX":920,"spawnY":120},{"unitId":"couqie","count":1,"instanceId":"l13-couqie-editor-24","spawnX":880,"spawnY":240},{"unitId":"couqie","count":1,"instanceId":"l13-couqie-editor-25","spawnX":860,"spawnY":360},{"unitId":"couqie","count":1,"instanceId":"l13-couqie-editor-26","spawnX":880,"spawnY":620},{"unitId":"couqie","count":1,"instanceId":"l13-couqie-editor-27","spawnX":880,"spawnY":700},{"unitId":"couqie","count":1,"instanceId":"l13-couqie-editor-28","spawnX":1060,"spawnY":660},{"unitId":"couqie","count":1,"instanceId":"l13-couqie-editor-32","spawnX":720,"spawnY":680},{"unitId":"couqie","count":1,"instanceId":"l13-couqie-editor-33","spawnX":560,"spawnY":680},{"unitId":"couqie","count":1,"instanceId":"l13-couqie-editor-34","spawnX":400,"spawnY":680},{"unitId":"couqie","count":1,"instanceId":"l13-couqie-editor-35","spawnX":200,"spawnY":680},{"unitId":"couqie","count":1,"instanceId":"l13-couqie-editor-36","spawnX":60,"spawnY":680},{"unitId":"couqie","count":1,"instanceId":"l13-couqie-editor-37","spawnX":260,"spawnY":680},{"unitId":"couqie","count":1,"instanceId":"l13-couqie-editor-38","spawnX":300,"spawnY":700},{"unitId":"couqie","count":1,"instanceId":"l13-couqie-editor-39","spawnX":720,"spawnY":720},{"unitId":"couqie","count":1,"instanceId":"l13-couqie-editor-40","spawnX":520,"spawnY":700},{"unitId":"couqie","count":1,"instanceId":"l13-couqie-editor-41","spawnX":340,"spawnY":700},{"unitId":"couqie","count":1,"instanceId":"l13-couqie-editor-42","spawnX":120,"spawnY":700},{"unitId":"couqie","count":1,"instanceId":"l13-couqie-editor-43","spawnX":80,"spawnY":60},{"unitId":"couqie","count":1,"instanceId":"l13-couqie-editor-44","spawnX":220,"spawnY":60},{"unitId":"couqie","count":1,"instanceId":"l13-couqie-editor-45","spawnX":380,"spawnY":60},{"unitId":"couqie","count":1,"instanceId":"l13-couqie-editor-46","spawnX":620,"spawnY":60},{"unitId":"couqie","count":1,"instanceId":"l13-couqie-editor-47","spawnX":720,"spawnY":60},{"unitId":"couqie","count":1,"instanceId":"l13-couqie-editor-48","spawnX":260,"spawnY":60},{"unitId":"couqie","count":1,"instanceId":"l13-couqie-editor-49","spawnX":180,"spawnY":60},{"unitId":"couqie","count":1,"instanceId":"l13-couqie-editor-50","spawnX":140,"spawnY":60},{"unitId":"couqie","count":1,"instanceId":"l13-couqie-editor-51","spawnX":480,"spawnY":60},{"unitId":"couqie","count":1,"instanceId":"l13-couqie-editor-52","spawnX":540,"spawnY":60},{"unitId":"couqie","count":1,"instanceId":"l13-couqie-editor-53","spawnX":340,"spawnY":60},{"unitId":"couqie","count":1,"instanceId":"l13-couqie-editor-54","spawnX":660,"spawnY":60},{"unitId":"couqie","count":1,"instanceId":"l13-couqie-editor-55","spawnX":420,"spawnY":80},{"unitId":"couqie","count":1,"instanceId":"l13-couqie-editor-56","spawnX":640,"spawnY":700},{"unitId":"couqie","count":1,"instanceId":"l13-couqie-editor-57","spawnX":460,"spawnY":700}],"playerDeployZones":[{"id":"player-zone-1","points":[{"x":90,"y":120},{"x":760,"y":120},{"x":760,"y":610},{"x":90,"y":610}]}]},{"id":14,"name":"召唤反制","subtitle":"难度 11 · 双 AOE 与后排续航","budget":2650,"tip":"两只瓜老板会把召唤物成片清掉；前排护卫只是拖延，必须用刺客或冲锋切掉后排续航。","deploymentClearancePx":2,"deploymentOverlapPercent":20,"enemies":[{"unitId":"dagou","count":1,"instanceId":"l14-dagou-01","spawnX":940,"spawnY":220,"overrides":{"hp":610}},{"unitId":"dagou","count":1,"instanceId":"l14-dagou-02","spawnX":940,"spawnY":600,"overrides":{"hp":610}},{"unitId":"daodun","count":1,"instanceId":"l14-daodun-01","spawnX":1020,"spawnY":140,"overrides":{"hp":390}},{"unitId":"daodun","count":1,"instanceId":"l14-daodun-02","spawnX":1020,"spawnY":680,"overrides":{"hp":390}},{"unitId":"couqie","count":1,"instanceId":"l14-couqie-01","spawnX":1020,"spawnY":410},{"unitId":"couqie","count":1,"instanceId":"l14-couqie-02","spawnX":1080,"spawnY":410,"overrides":{"hp":40,"atk":2}},{"unitId":"maodie","count":1,"instanceId":"l14-maodie-01","spawnX":1160,"spawnY":250},{"unitId":"maodie","count":1,"instanceId":"l14-maodie-02","spawnX":1160,"spawnY":570},{"unitId":"gugugaga","count":1,"instanceId":"l14-gugugaga-01","spawnX":1220,"spawnY":410},{"unitId":"melonboss","count":1,"instanceId":"l14-melonboss-01","spawnX":1400,"spawnY":170,"overrides":{"hp":260,"atk":25}},{"unitId":"melonboss","count":1,"instanceId":"l14-melonboss-02","spawnX":1400,"spawnY":650,"overrides":{"hp":260,"atk":25}},{"unitId":"naima","count":1,"instanceId":"l14-naima-01","spawnX":1480,"spawnY":250},{"unitId":"naima","count":1,"instanceId":"l14-naima-02","spawnX":1480,"spawnY":570},{"unitId":"caixukun","count":1,"instanceId":"l14-caixukun-01","spawnX":1480,"spawnY":410,"overrides":{"hp":340}}],"playerDeployZones":[{"id":"player-zone-1","points":[{"x":90,"y":120},{"x":760,"y":120},{"x":760,"y":610},{"x":90,"y":610}]}]},{"id":15,"name":"远程封顶","subtitle":"难度 12 · 三层远程火力网","budget":2800,"tip":"火力网会惩罚单一前排：用大运制造突破口，用范围控制打断输出，再让刺客收尾。","deploymentClearancePx":2,"deploymentOverlapPercent":20,"enemies":[{"unitId":"dagou","count":1,"instanceId":"l15-dagou-01","spawnX":930,"spawnY":200,"overrides":{"hp":620}},{"unitId":"dagou","count":1,"instanceId":"l15-dagou-02","spawnX":930,"spawnY":620,"overrides":{"hp":620}},{"unitId":"dayun","count":1,"instanceId":"l15-dayun-01","spawnX":930,"spawnY":410,"overrides":{"hp":410}},{"unitId":"daodun","count":1,"instanceId":"l15-daodun-01","spawnX":1010,"spawnY":260,"overrides":{"hp":400}},{"unitId":"daodun","count":1,"instanceId":"l15-daodun-02","spawnX":1010,"spawnY":560,"overrides":{"hp":400}},{"unitId":"couqie","count":1,"instanceId":"l15-couqie-01","spawnX":1080,"spawnY":410,"overrides":{"hp":40,"atk":2}},{"unitId":"gugugaga","count":1,"instanceId":"l15-gugugaga-01","spawnX":1160,"spawnY":180},{"unitId":"gugugaga","count":1,"instanceId":"l15-gugugaga-02","spawnX":1160,"spawnY":640},{"unitId":"maodie","count":1,"instanceId":"l15-maodie-01","spawnX":1220,"spawnY":410},{"unitId":"caixukun","count":1,"instanceId":"l15-caixukun-01","spawnX":1400,"spawnY":170,"overrides":{"hp":340}},{"unitId":"caixukun","count":1,"instanceId":"l15-caixukun-02","spawnX":1400,"spawnY":650,"overrides":{"hp":340}},{"unitId":"gazi","count":1,"instanceId":"l15-gazi-01","spawnX":1460,"spawnY":270},{"unitId":"gazi","count":1,"instanceId":"l15-gazi-02","spawnX":1460,"spawnY":550},{"unitId":"huangsedashu","count":1,"instanceId":"l15-huangsedashu-01","spawnX":1500,"spawnY":410}],"playerDeployZones":[{"id":"player-zone-1","points":[{"x":90,"y":120},{"x":760,"y":120},{"x":760,"y":610},{"x":90,"y":610}]}]},{"id":16,"name":"四角夹击","subtitle":"难度 13 · 四向切入与反打","budget":2950,"tip":"刺客、跳后排和控制会从不同角度切入；前排不能挤成一团，后排要留出反打空间。","deploymentClearancePx":2,"deploymentOverlapPercent":20,"enemies":[{"unitId":"huaqiang","count":1,"instanceId":"l16-huaqiang-01","spawnX":930,"spawnY":220,"overrides":{"hp":370,"atk":36}},{"unitId":"niulai","count":1,"instanceId":"l16-niulai-01","spawnX":930,"spawnY":600,"overrides":{"hp":480}},{"unitId":"dagou","count":1,"instanceId":"l16-dagou-01","spawnX":1010,"spawnY":410,"overrides":{"hp":630}},{"unitId":"daodun","count":1,"instanceId":"l16-daodun-01","spawnX":1010,"spawnY":140,"overrides":{"hp":410}},{"unitId":"daodun","count":1,"instanceId":"l16-daodun-02","spawnX":1010,"spawnY":680,"overrides":{"hp":410}},{"unitId":"maodie","count":1,"instanceId":"l16-maodie-01","spawnX":1160,"spawnY":240},{"unitId":"maodie","count":1,"instanceId":"l16-maodie-02","spawnX":1160,"spawnY":580},{"unitId":"gugugaga","count":1,"instanceId":"l16-gugugaga-01","spawnX":1220,"spawnY":160},{"unitId":"gugugaga","count":1,"instanceId":"l16-gugugaga-02","spawnX":1220,"spawnY":660},{"unitId":"miaocuijiao","count":1,"instanceId":"l16-miaocuijiao-01","spawnX":1360,"spawnY":210,"overrides":{"hp":240,"atk":112}},{"unitId":"miaocuijiao","count":1,"instanceId":"l16-miaocuijiao-02","spawnX":1360,"spawnY":610,"overrides":{"hp":240,"atk":112}},{"unitId":"gazi","count":1,"instanceId":"l16-gazi-01","spawnX":1430,"spawnY":410},{"unitId":"caixukun","count":1,"instanceId":"l16-caixukun-01","spawnX":1490,"spawnY":180,"overrides":{"hp":350}},{"unitId":"naima","count":1,"instanceId":"l16-naima-01","spawnX":1490,"spawnY":640}],"playerDeployZones":[{"id":"player-zone-1","points":[{"x":90,"y":120},{"x":760,"y":120},{"x":760,"y":610},{"x":90,"y":610}]}]},{"id":17,"name":"极限防线","subtitle":"难度 14 · 厚前排与双续航","budget":3100,"tip":"两层前排加双召唤续航，不能只靠单体爆发；先用范围技能压低后排，再集中拆前排。","deploymentClearancePx":2,"deploymentOverlapPercent":20,"enemies":[{"unitId":"dayun","count":1,"instanceId":"l17-dayun-01","spawnX":920,"spawnY":220,"overrides":{"hp":420}},{"unitId":"dagou","count":1,"instanceId":"l17-dagou-01","spawnX":1000,"spawnY":140,"overrides":{"hp":640}},{"unitId":"dagou","count":1,"instanceId":"l17-dagou-02","spawnX":1000,"spawnY":680,"overrides":{"hp":640}},{"unitId":"daodun","count":1,"instanceId":"l17-daodun-01","spawnX":1040,"spawnY":330,"overrides":{"hp":420}},{"unitId":"couqie","count":1,"instanceId":"l17-couqie-01","spawnX":1080,"spawnY":100,"overrides":{"hp":40,"atk":2}},{"unitId":"couqie","count":1,"instanceId":"l17-couqie-02","spawnX":1080,"spawnY":220,"overrides":{"hp":40,"atk":2}},{"unitId":"couqie","count":1,"instanceId":"l17-couqie-03","spawnX":1080,"spawnY":460,"overrides":{"hp":40,"atk":2}},{"unitId":"couqie","count":1,"instanceId":"l17-couqie-04","spawnX":1080,"spawnY":600,"overrides":{"hp":40,"atk":2}},{"unitId":"couqie","count":1,"instanceId":"l17-couqie-05","spawnX":1080,"spawnY":720,"overrides":{"hp":40,"atk":2}},{"unitId":"couqie","count":1,"instanceId":"l17-couqie-06","spawnX":1100,"spawnY":340,"overrides":{"hp":40,"atk":2}},{"unitId":"couqie","count":1,"instanceId":"l17-couqie-07","spawnX":1120,"spawnY":640,"overrides":{"hp":40,"atk":2}},{"unitId":"couqie","count":1,"instanceId":"l17-couqie-08","spawnX":1120,"spawnY":180,"overrides":{"hp":40,"atk":2}},{"unitId":"couqie","count":1,"instanceId":"l17-couqie-09","spawnX":1120,"spawnY":500,"overrides":{"hp":40,"atk":2}},{"unitId":"maodie","count":1,"instanceId":"l17-maodie-01","spawnX":1160,"spawnY":240},{"unitId":"gugugaga","count":1,"instanceId":"l17-gugugaga-01","spawnX":1220,"spawnY":140},{"unitId":"melonboss","count":1,"instanceId":"l17-melonboss-01","spawnX":1360,"spawnY":200,"overrides":{"hp":280,"atk":27}},{"unitId":"melonboss","count":1,"instanceId":"l17-melonboss-02","spawnX":1360,"spawnY":620,"overrides":{"hp":280,"atk":27}},{"unitId":"caixukun","count":1,"instanceId":"l17-caixukun-01","spawnX":1430,"spawnY":120,"overrides":{"hp":360}},{"unitId":"gazi","count":1,"instanceId":"l17-gazi-01","spawnX":1500,"spawnY":410},{"unitId":"naima","count":1,"instanceId":"l17-naima-01","spawnX":1500,"spawnY":600}],"playerDeployZones":[{"id":"player-zone-1","points":[{"x":90,"y":120},{"x":760,"y":120},{"x":760,"y":610},{"x":90,"y":610}]}]},{"id":18,"name":"全机制压测","subtitle":"难度 15 · 全机制交叉考试","budget":3250,"tip":"冲锋、控制、刺杀、召唤和范围火力同时出现；布阵要分层，输出要同时准备点杀与 AOE。","deploymentClearancePx":2,"deploymentOverlapPercent":20,"enemies":[{"unitId":"dayun","count":1,"instanceId":"l18-dayun-01","spawnX":920,"spawnY":160,"overrides":{"hp":430}},{"unitId":"dagou","count":1,"instanceId":"l18-dagou-01","spawnX":1000,"spawnY":260,"overrides":{"hp":650}},{"unitId":"dagou","count":1,"instanceId":"l18-dagou-02","spawnX":1000,"spawnY":560,"overrides":{"hp":650}},{"unitId":"huaqiang","count":1,"instanceId":"l18-huaqiang-01","spawnX":1040,"spawnY":410,"overrides":{"hp":380,"atk":38}},{"unitId":"daodun","count":1,"instanceId":"l18-daodun-01","spawnX":1040,"spawnY":100,"overrides":{"hp":430}},{"unitId":"couqie","count":1,"instanceId":"l18-couqie-01","spawnX":1080,"spawnY":180,"overrides":{"hp":40,"atk":2}},{"unitId":"couqie","count":1,"instanceId":"l18-couqie-02","spawnX":1080,"spawnY":300,"overrides":{"hp":40,"atk":2}},{"unitId":"couqie","count":1,"instanceId":"l18-couqie-03","spawnX":1080,"spawnY":520,"overrides":{"hp":40,"atk":2}},{"unitId":"couqie","count":1,"instanceId":"l18-couqie-04","spawnX":1080,"spawnY":700,"overrides":{"hp":40,"atk":2}},{"unitId":"couqie","count":1,"instanceId":"l18-couqie-05","spawnX":1120,"spawnY":260,"overrides":{"hp":40,"atk":2}},{"unitId":"couqie","count":1,"instanceId":"l18-couqie-06","spawnX":1120,"spawnY":600,"overrides":{"hp":40,"atk":2}},{"unitId":"maodie","count":1,"instanceId":"l18-maodie-01","spawnX":1160,"spawnY":220},{"unitId":"gugugaga","count":1,"instanceId":"l18-gugugaga-01","spawnX":1220,"spawnY":120},{"unitId":"miaocuijiao","count":1,"instanceId":"l18-miaocuijiao-01","spawnX":1360,"spawnY":180,"overrides":{"hp":250,"atk":114}},{"unitId":"gazi","count":1,"instanceId":"l18-gazi-01","spawnX":1430,"spawnY":300},{"unitId":"caixukun","count":1,"instanceId":"l18-caixukun-01","spawnX":1500,"spawnY":160,"overrides":{"hp":370}},{"unitId":"naima","count":1,"instanceId":"l18-naima-01","spawnX":1500,"spawnY":680},{"unitId":"melonboss","count":1,"instanceId":"l18-melonboss-01","spawnX":1500,"spawnY":410,"overrides":{"hp":300,"atk":28}}],"playerDeployZones":[{"id":"player-zone-1","points":[{"x":90,"y":120},{"x":760,"y":120},{"x":760,"y":610},{"x":90,"y":610}]}]},{"id":19,"name":"最终前夜","subtitle":"难度 16 · Boss 前最后整备","budget":3500,"tip":"这是最终 Boss 前的综合压力关：每一层都有职责，先拆续航与控制，再用人海围住高价值目标。","deploymentClearancePx":2,"deploymentOverlapPercent":20,"enemies":[{"unitId":"dayun","count":1,"instanceId":"l19-dayun-01","spawnX":920,"spawnY":220,"overrides":{"hp":400}},{"unitId":"dayun","count":1,"instanceId":"l19-dayun-02","spawnX":920,"spawnY":600,"overrides":{"hp":400}},{"unitId":"dagou","count":1,"instanceId":"l19-dagou-01","spawnX":1000,"spawnY":410,"overrides":{"hp":600}},{"unitId":"daodun","count":1,"instanceId":"l19-daodun-01","spawnX":1040,"spawnY":180,"overrides":{"hp":420}},{"unitId":"couqie","count":1,"instanceId":"l19-couqie-01","spawnX":1080,"spawnY":100,"overrides":{"hp":40,"atk":2}},{"unitId":"couqie","count":1,"instanceId":"l19-couqie-02","spawnX":1080,"spawnY":300,"overrides":{"hp":40,"atk":2}},{"unitId":"couqie","count":1,"instanceId":"l19-couqie-03","spawnX":1080,"spawnY":500,"overrides":{"hp":40,"atk":2}},{"unitId":"couqie","count":1,"instanceId":"l19-couqie-04","spawnX":1080,"spawnY":700,"overrides":{"hp":40,"atk":2}},{"unitId":"couqie","count":1,"instanceId":"l19-couqie-05","spawnX":1120,"spawnY":410,"overrides":{"hp":40,"atk":2}},{"unitId":"couqie","count":1,"instanceId":"l19-couqie-06","spawnX":1120,"spawnY":200,"overrides":{"hp":40,"atk":2}},{"unitId":"couqie","count":1,"instanceId":"l19-couqie-07","spawnX":1120,"spawnY":600,"overrides":{"hp":40,"atk":2}},{"unitId":"maodie","count":1,"instanceId":"l19-maodie-01","spawnX":1160,"spawnY":250},{"unitId":"gugugaga","count":1,"instanceId":"l19-gugugaga-01","spawnX":1220,"spawnY":570},{"unitId":"melonboss","count":1,"instanceId":"l19-melonboss-01","spawnX":1360,"spawnY":180,"overrides":{"hp":330,"atk":30}},{"unitId":"melonboss","count":1,"instanceId":"l19-melonboss-02","spawnX":1360,"spawnY":640,"overrides":{"hp":330,"atk":30}},{"unitId":"caixukun","count":1,"instanceId":"l19-caixukun-01","spawnX":1430,"spawnY":410,"overrides":{"hp":360}},{"unitId":"gazi","count":1,"instanceId":"l19-gazi-01","spawnX":1490,"spawnY":250},{"unitId":"miaocuijiao","count":1,"instanceId":"l19-miaocuijiao-01","spawnX":1490,"spawnY":100,"overrides":{"hp":200,"atk":82}},{"unitId":"naima","count":1,"instanceId":"l19-naima-01","spawnX":1490,"spawnY":700}],"playerDeployZones":[{"id":"player-zone-1","points":[{"x":90,"y":120},{"x":760,"y":120},{"x":760,"y":610},{"x":90,"y":610}]}]},{"id":20,"name":"双王终战","subtitle":"BOSS 2 · 双首领最终决战","budget":3600,"tip":"两名新首领互补：白酒擂台王负责短距冲锋与续航，瓜神负责远程瓜雨压制。先拆续航，再用前排分割两名首领，避免让任何一个首领长时间安全输出。","deploymentClearancePx":2,"deploymentOverlapPercent":20,"enemies":[{"unitId":"boss_baijiu","count":1,"instanceId":"l20-boss-baijiu","spawnX":920,"spawnY":410,"overrides":{"hp":1150,"atk":34,"as":0.82}},{"unitId":"dayun","count":1,"instanceId":"l20-dayun-01","spawnX":1000,"spawnY":220,"overrides":{"hp":470,"atk":40}},{"unitId":"dayun","count":1,"instanceId":"l20-dayun-02","spawnX":1000,"spawnY":600,"overrides":{"hp":470,"atk":40}},{"unitId":"dagou","count":1,"instanceId":"l20-dagou-01","spawnX":1040,"spawnY":140,"overrides":{"hp":600,"atk":25}},{"unitId":"dagou","count":1,"instanceId":"l20-dagou-02","spawnX":1040,"spawnY":680,"overrides":{"hp":600,"atk":25}},{"unitId":"daodun","count":1,"instanceId":"l20-daodun-01","spawnX":1040,"spawnY":410,"overrides":{"hp":420}},{"unitId":"maodie","count":1,"instanceId":"l20-maodie-01","spawnX":1160,"spawnY":230,"overrides":{"hp":380}},{"unitId":"gugugaga","count":1,"instanceId":"l20-gugugaga-01","spawnX":1220,"spawnY":150,"overrides":{"hp":230}},{"unitId":"boss_guasheng","count":1,"instanceId":"l20-boss-guasheng","spawnX":1400,"spawnY":410,"overrides":{"hp":1050,"atk":30,"as":0.86,"range":290}},{"unitId":"caixukun","count":1,"instanceId":"l20-caixukun-01","spawnX":1470,"spawnY":220,"overrides":{"hp":350,"atk":26}},{"unitId":"caixukun","count":1,"instanceId":"l20-caixukun-02","spawnX":1470,"spawnY":600,"overrides":{"hp":350,"atk":26}},{"unitId":"naima","count":1,"instanceId":"l20-naima-01","spawnX":1500,"spawnY":130},{"unitId":"gazi","count":1,"instanceId":"l20-gazi-01","spawnX":1500,"spawnY":690}],"playerDeployZones":[{"id":"player-zone-1","points":[{"x":90,"y":120},{"x":760,"y":120},{"x":760,"y":610},{"x":90,"y":610}]}]}]},"./data/audio-assets.json":{"selection":["audio/妈妈.mp3","audio/奶龙捧腹大笑原版.mp3","audio/cut_：一个视频教会大家如何咕咕嘎嘎🐧.mp3","audio/cut_【梗百科】我的刀盾和哔哔拉布是啥梗？.mp3","audio/cut_不行了咕咕嘎嘎太魔性上头了.mp3","audio/cut_蔡 徐 坤 全 部 音 效.mp3","audio/cut_妙脆角很不高兴为你服务.mp3","audio/cut_你胆子真是肥嘟嘟的啊，纯享版，可拿去当素材.mp3","audio/cut_人生啊能不能放过我这一次.mp3","audio/cut_我Chovy，你们拿货给我拿好的啊.mp3","audio/cut_圆头耄耋原视频.mp3","audio/cut_这瓜保熟吗（原视频） (1).mp3","audio/cut_这瓜保熟吗（原视频）.mp3","audio/dagou.mp3"],"hurt":["audioHurt/terraria-hurt-male.mp3"],"melee":["audioJinHit/cut_拳击打斗音效素材 (1).mp3","audioJinHit/cut_拳击打斗音效素材 (2).mp3","audioJinHit/cut_拳击打斗音效素材 (3).mp3","audioJinHit/cut_拳击打斗音效素材.mp3"],"bloom":["audioBloom/cut_拳击打斗音效素材 (4).mp3","audioBloom/cut_拳击打斗音效素材 (5).mp3","audioBloom/cut_拳击打斗音效素材 (6).mp3"],"death":["audioDead/cut_饿啊素材.mp3"]}};</script>
     <!-- MEME_WAR_EMBEDDED_DATA_END -->
     <!-- MEME_WAR_STATIC_RUNTIME_START -->
     <script>(function () {
@@ -2695,7 +2767,7 @@ const BASIC_ATTACK_ACTION_DURATIONS = Object.freeze({
 });
 const BASIC_ATTACK_ACTION_TYPES = new Set(['meleeAttack', 'rangedAttack']);
 const PARTICLE_AREA_SKILL_TYPES = new Set(['cone', 'pulse', 'slowPulse', 'fear', 'aoe', 'aoeSlow', 'aoeDebuff']);
-const AREA_SMOKE_DURATION = 3.8;
+const AREA_SMOKE_DURATION = 4.6;
 const MIN_MOVEMENT_MODE_HYSTERESIS = 10;
 const MAX_MOVEMENT_MODE_HYSTERESIS = 44;
 const TARGET_SWITCH_HYSTERESIS = 12;
@@ -2709,6 +2781,95 @@ const NAIMA_KNIGHT_ENTRY_DURATIONS = Object.freeze({ fall: 0.42, impact: 0.08, b
 const NAIMA_KNIGHT_GROUP_STUN = 0.95;
 const NAIMA_KNIGHT_SELF_STUN = 2.1;
 const NAIMA_KNIGHT_IMPACT_VISUAL_SIZE = 168;
+
+function createExplosionSmoke(effect) {
+  const configuredRadius = Number(effect.gameplayRadius ?? effect.radius);
+  const radius = Number.isFinite(configuredRadius) && configuredRadius > 0 ? Math.max(12, configuredRadius) : 75;
+  const smokeRadius = radius * 0.65;
+  const configuredDamage = Number(effect.damage);
+  const damage = Number.isFinite(configuredDamage) ? Math.max(0, configuredDamage) : 0;
+  const configuredDuration = Number(effect.particleDuration);
+  const duration = Number.isFinite(configuredDuration) ? Math.max(AREA_SMOKE_DURATION, configuredDuration) : AREA_SMOKE_DURATION;
+  const density = Math.min(12, Math.ceil(damage / 24));
+  // Visual randomness is generated once and never consumes the combat RNG.
+  let state = Math.imul(effect.id, 0x9e3779b9) >>> 0;
+  const random = () => {
+    state = (Math.imul(state, 1664525) + 1013904223) >>> 0;
+    return state / 0x100000000;
+  };
+  const sample = ([minimum, maximum]) => minimum + (maximum - minimum) * random();
+  // Small puffs add detail without making the whole plume larger or uniformly opaque.
+  // Layer order is fixed at birth: ground, contact cloud, raised dust, fine spray.
+  const layers = [
+    {
+      kind: 'ground', count: 12 + density, size: [0.10, 0.17], minimumRadius: 3,
+      reach: [0.72, 1.18], opacity: 0.46, delay: [0.01, 0.08], hold: [0.045, 0.085],
+      fast: [0.22, 0.36], lift: [0.025, 0.07], rise: [0.055, 0.09], settle: [0.35, 0.65],
+      life: [0.82, 1], growth: 0.24,
+    },
+    {
+      kind: 'contact', count: 3, size: [0.18, 0.25], minimumRadius: 4.5,
+      reach: [0.10, 0.22], opacity: 0.50, delay: [0, 0.025], hold: [0, 0.02],
+      fast: [0.30, 0.45], lift: [0.05, 0.11], rise: [0.065, 0.11], settle: [0.40, 0.65],
+      life: [0.18, 0.28], growth: 0.16,
+    },
+    {
+      kind: 'raised', count: 8 + Math.ceil(density * 0.5), size: [0.15, 0.24], minimumRadius: 4,
+      reach: [0.38, 0.92], opacity: 0.48, delay: [0.035, 0.14], hold: [0.045, 0.09],
+      fast: [0.26, 0.42], lift: [0.20, 0.36], rise: [0.10, 0.18], settle: [0.75, 1.35],
+      life: [0.78, 0.98], growth: 0.30,
+    },
+    {
+      kind: 'fine', count: 10 + density, size: [0.035, 0.075], minimumRadius: 1.5,
+      reach: [1.02, 1.42], opacity: 0.58, delay: [0, 0.045], hold: [0.015, 0.035],
+      fast: [0.16, 0.28], lift: [0.12, 0.28], rise: [0.07, 0.11], settle: [0.25, 0.45],
+      life: [0.46, 0.72], growth: 0.12,
+    },
+  ];
+  const particles = [];
+  for (const layer of layers) {
+    const angularOffset = random() * Math.PI * 2;
+    const sectorAngle = Math.PI * 2 / layer.count;
+    for (let index = 0; index < layer.count; index += 1) {
+      // Jitter within sectors keeps coverage around the impact without a perfect ring.
+      const angle = angularOffset + (index + (random() - 0.5) * 0.92) * sectorAngle;
+      const startAngle = angle + (random() - 0.5) * 0.5;
+      const startReach = smokeRadius * (0.015 + random() * 0.055);
+      const travelDistance = smokeRadius * sample(layer.reach) - startReach;
+      const delay = layer.kind === 'contact' && index === 0 ? 0 : sample(layer.delay);
+      particles.push({
+        kind: layer.kind,
+        startX: Math.cos(startAngle) * startReach,
+        startY: Math.sin(startAngle) * startReach,
+        driftX: Math.cos(angle) * travelDistance,
+        driftY: Math.sin(angle) * travelDistance,
+        travelDistance,
+        minimumSpeed: Math.max(layer.kind === 'fine' ? 5 : 4, travelDistance * (layer.kind === 'fine' ? 0.10 : 0.08)),
+        radius: Math.max(layer.minimumRadius, smokeRadius * sample(layer.size)),
+        growth: layer.growth,
+        curl: smokeRadius * (random() - 0.5) * 0.06,
+        delay,
+        hold: sample(layer.hold),
+        fastDuration: sample(layer.fast),
+        slowdownDistance: 0.74 + random() * 0.12,
+        liftHeight: smokeRadius * sample(layer.lift),
+        riseTime: sample(layer.rise),
+        settleTime: sample(layer.settle),
+        airTime: 0.35 + random() * 0.35,
+        duration: (duration - delay) * sample(layer.life),
+        opacity: layer.opacity * (0.86 + random() * 0.28),
+        shade: 0.92 + random() * 0.14,
+        rotation: random() * Math.PI * 2,
+        spin: (random() < 0.5 ? -1 : 1) * (0.12 + random() * 0.20),
+        variant: Math.floor(random() * 4),
+      });
+    }
+  }
+  return {
+    id: effect.id, x: effect.x, y: effect.y, radius, damage, duration, life: duration,
+    particles,
+  };
+}
 
 function freshStatus() {
   return {
@@ -2742,6 +2903,7 @@ class BattleSimulation {
     this.units = [];
     this.projectiles = [];
     this.effects = [];
+    this.explosions = [];
     this.floatingTexts = [];
     this.logs = [];
     this.phase = 'battle';
@@ -5925,6 +6087,8 @@ class BattleSimulation {
   updateVisualEffects(dt) {
     for (const effect of this.effects) effect.life -= dt;
     this.effects = this.effects.filter((effect) => effect.life > 0);
+    for (const explosion of this.explosions) explosion.life -= dt;
+    this.explosions = this.explosions.filter((explosion) => explosion.life > 0);
     for (const text of this.floatingTexts) {
       text.life -= dt;
       text.y -= dt * (text.driftY ?? 28);
@@ -5935,22 +6099,23 @@ class BattleSimulation {
 
   addEffect(type, x, y, color, radius, duration, meta = {}) {
     const visualDuration = Math.max(0.05, Number(duration) || 0.05);
-    const requestedParticleDuration = Number(meta.particleDuration);
-    const safeDuration = Number.isFinite(requestedParticleDuration)
-      ? Math.max(visualDuration, requestedParticleDuration)
-      : visualDuration;
-    const effectMeta = safeDuration > visualDuration ? { ...meta, visualDuration } : meta;
-    this.effects.push({
-      ...effectMeta,
+    const effect = {
+      ...meta,
       id: this.nextEffectId++,
       type,
       x,
       y,
       color,
       radius,
-      duration: safeDuration,
-      life: safeDuration,
-    });
+      visualDuration,
+      duration: visualDuration,
+      life: visualDuration,
+    };
+    this.effects.push(effect);
+    // Smoke has its own lifetime/list: impact spam must not remove a live explosion.
+    if (!meta.suppressAreaDust && (meta.effectRole === 'area' || type === 'impactRange')) {
+      this.explosions.push(createExplosionSmoke(effect));
+    }
     // 区域主特效响一次；同一爆发的西瓜装饰层不重复发声。
     if (!meta.suppressAreaDust && (meta.effectRole === 'area' || type === 'impactRange' || meta.soundEffect === 'bloom')) {
       this.emitAudio('bloom');
@@ -6013,6 +6178,9 @@ const SPRITE_ATLAS_COLUMNS = 4;
 const SPRITE_ATLAS_ROWS = 10;
 const EFFECT_ATLAS_COLUMNS = 4;
 const EFFECT_ATLAS_ROWS = 9;
+const SMOKE_CELL_SIZE = 192;
+const SMOKE_ATLAS_SIZE = SMOKE_CELL_SIZE * 2;
+const SMOKE_QUAD_CORNERS = [-1, -1, 1, -1, 1, 1, -1, -1, 1, 1, -1, 1];
 const VERTEX_SOURCE = `#version 300 es
 in vec2 a_position;
 uniform vec2 u_resolution;
@@ -6093,6 +6261,36 @@ void main() {
   outColor = sampled * u_tint;
 }`;
 
+const SMOKE_VERTEX_SOURCE = `#version 300 es
+in vec2 a_position;
+in vec2 a_uv;
+in vec2 a_appearance;
+uniform vec2 u_resolution;
+uniform vec2 u_camera;
+uniform float u_zoom;
+out vec2 v_uv;
+out vec2 v_appearance;
+
+void main() {
+  vec2 screen = (a_position - u_camera) * u_zoom + u_resolution * 0.5;
+  vec2 clip = screen / u_resolution * 2.0 - 1.0;
+  gl_Position = vec4(clip.x, -clip.y, 0.0, 1.0);
+  v_uv = a_uv;
+  v_appearance = a_appearance;
+}`;
+
+const SMOKE_FRAGMENT_SOURCE = `#version 300 es
+precision mediump float;
+uniform sampler2D u_texture;
+in vec2 v_uv;
+in vec2 v_appearance;
+out vec4 outColor;
+
+void main() {
+  vec4 sampled = texture(u_texture, v_uv);
+  outColor = vec4(sampled.rgb * v_appearance.x, sampled.a * v_appearance.y);
+}`;
+
 function hexToRgba(value, alpha = 1) {
   const hex = String(value ?? '#ffffff').replace('#', '');
   const normalized = hex.length === 3 ? hex.split('').map((part) => part + part).join('') : hex.padEnd(6, 'f');
@@ -6170,9 +6368,9 @@ function createProgram(gl) {
   return program;
 }
 
-function createSpriteProgram(gl) {
-  const vertex = compileShader(gl, gl.VERTEX_SHADER, SPRITE_VERTEX_SOURCE);
-  const fragment = compileShader(gl, gl.FRAGMENT_SHADER, SPRITE_FRAGMENT_SOURCE);
+function createSpriteProgram(gl, vertexSource = SPRITE_VERTEX_SOURCE, fragmentSource = SPRITE_FRAGMENT_SOURCE) {
+  const vertex = compileShader(gl, gl.VERTEX_SHADER, vertexSource);
+  const fragment = compileShader(gl, gl.FRAGMENT_SHADER, fragmentSource);
   const program = gl.createProgram();
   if (!program) throw new Error('无法创建 WebGL sprite program');
   gl.attachShader(program, vertex);
@@ -6188,6 +6386,60 @@ function createSpriteProgram(gl) {
   return program;
 }
 
+function createSmokeAtlas() {
+  // Four original round cartoon puffs, cached synchronously without image/network loading.
+  const canvas = document.createElement('canvas');
+  canvas.width = canvas.height = SMOKE_ATLAS_SIZE;
+  const context = canvas.getContext('2d');
+  if (!context) throw new Error('无法生成爆炸烟团纹理');
+  for (let variant = 0; variant < 4; variant += 1) {
+    let state = Math.imul(variant + 1, 0x9e3779b9) >>> 0;
+    const random = () => {
+      state = (Math.imul(state, 1664525) + 1013904223) >>> 0;
+      return state / 0x100000000;
+    };
+    context.save();
+    context.translate((variant % 2) * SMOKE_CELL_SIZE, Math.floor(variant / 2) * SMOKE_CELL_SIZE);
+    context.beginPath();
+    context.arc(96, 96, 78, 0, Math.PI * 2);
+    context.clip();
+    const paintLobe = (x, y, radius, brightness, alpha) => {
+      const gradient = context.createRadialGradient(x - radius * 0.2, y - radius * 0.28, 0, x, y, radius);
+      gradient.addColorStop(0, `rgba(${brightness + 26},${brightness + 28},${brightness + 30},${alpha * 0.94})`);
+      gradient.addColorStop(0.42, `rgba(${brightness},${brightness + 2},${brightness + 4},${alpha})`);
+      gradient.addColorStop(0.8, `rgba(${brightness - 22},${brightness - 20},${brightness - 18},${alpha * 0.9})`);
+      gradient.addColorStop(0.96, `rgba(96,100,104,${alpha * 0.5})`);
+      gradient.addColorStop(1, 'rgba(96,100,104,0)');
+      context.fillStyle = gradient;
+      context.beginPath();
+      context.arc(x, y, radius, 0, Math.PI * 2);
+      context.fill();
+    };
+    paintLobe(96, 96, 76, 132, 0.94);
+    for (let lobe = 0; lobe < 7; lobe += 1) {
+      const angle = lobe * Math.PI * 2 / 7 + random() * 0.45;
+      const reach = 25 + random() * 9;
+      paintLobe(96 + Math.cos(angle) * reach, 96 + Math.sin(angle) * reach, 25 + random() * 6, 140 + Math.floor(random() * 16), 0.42);
+    }
+    for (let lobe = 0; lobe < 5; lobe += 1) {
+      const angle = random() * Math.PI * 2;
+      const reach = Math.sqrt(random()) * 35;
+      paintLobe(96 + Math.cos(angle) * reach, 96 + Math.sin(angle) * reach, 15 + random() * 6, 150 + Math.floor(random() * 12), 0.3);
+    }
+    context.lineCap = 'round';
+    context.lineWidth = 2.5;
+    context.strokeStyle = 'rgba(94,98,102,0.3)';
+    for (let fold = 0; fold < 3; fold += 1) {
+      const angle = variant * 0.6 + fold * 1.8;
+      context.beginPath();
+      context.arc(92 + fold * 4, 91 + fold * 3, 20 + fold * 10, angle, angle + 1.8);
+      context.stroke();
+    }
+    context.restore();
+  }
+  return canvas;
+}
+
 class NativeWebGLRenderer {
   constructor(canvas) {
     this.canvas = canvas;
@@ -6200,9 +6452,19 @@ class NativeWebGLRenderer {
 
     this.program = createProgram(this.gl);
     this.spriteProgram = createSpriteProgram(this.gl);
+    this.smokeProgram = createSpriteProgram(this.gl, SMOKE_VERTEX_SOURCE, SMOKE_FRAGMENT_SOURCE);
     this.positionBuffer = this.gl.createBuffer();
     this.spritePositionBuffer = this.gl.createBuffer();
     this.spriteUvBuffer = this.gl.createBuffer();
+    this.smokePositionBuffer = this.gl.createBuffer();
+    this.smokeUvBuffer = this.gl.createBuffer();
+    this.smokeAppearanceBuffer = this.gl.createBuffer();
+    this.smokePositions = new Float32Array(64 * 12);
+    this.smokeUvs = new Float32Array(64 * 12);
+    this.smokeAppearances = new Float32Array(64 * 12);
+    this.smokeVertexArray = this.gl.createVertexArray();
+    if (!this.smokeVertexArray) throw new Error('无法创建烟尘顶点状态');
+    this.smokeTexture = this.createSmokeTexture();
     this.terrainBatchCache = new WeakMap();
     this.terrainTransitionCache = new Map();
     this.positionLocation = this.gl.getAttribLocation(this.program, 'a_position');
@@ -6224,6 +6486,24 @@ class NativeWebGLRenderer {
     this.spriteEdgeStrengthLocation = this.gl.getUniformLocation(this.spriteProgram, 'u_edge_strength');
     this.spriteEdgeFlowPhaseLocation = this.gl.getUniformLocation(this.spriteProgram, 'u_edge_flow_phase');
     this.spriteEdgeWidthLocation = this.gl.getUniformLocation(this.spriteProgram, 'u_edge_width');
+    this.smokeResolutionLocation = this.gl.getUniformLocation(this.smokeProgram, 'u_resolution');
+    this.smokeCameraLocation = this.gl.getUniformLocation(this.smokeProgram, 'u_camera');
+    this.smokeZoomLocation = this.gl.getUniformLocation(this.smokeProgram, 'u_zoom');
+    this.smokeTextureLocation = this.gl.getUniformLocation(this.smokeProgram, 'u_texture');
+    // Keep particle attributes isolated from the ordinary sprite/shape VAO.
+    this.gl.bindVertexArray(this.smokeVertexArray);
+    for (const [buffer, name] of [
+      [this.smokePositionBuffer, 'a_position'],
+      [this.smokeUvBuffer, 'a_uv'],
+      [this.smokeAppearanceBuffer, 'a_appearance'],
+    ]) {
+      const location = this.gl.getAttribLocation(this.smokeProgram, name);
+      this.gl.bindBuffer(this.gl.ARRAY_BUFFER, buffer);
+      this.gl.enableVertexAttribArray(location);
+      this.gl.vertexAttribPointer(location, 2, this.gl.FLOAT, false, 0, 0);
+    }
+    this.gl.bindVertexArray(null);
+    this.gl.bindBuffer(this.gl.ARRAY_BUFFER, null);
     this.spriteTexture = null;
     this.spriteReady = false;
     this.effectTexture = null;
@@ -6248,6 +6528,22 @@ class NativeWebGLRenderer {
 
   loadTexture(url) {
     return this.loadImageTexture(url, 'sprite');
+  }
+
+  createSmokeTexture() {
+    const gl = this.gl;
+    const texture = gl.createTexture();
+    if (!texture) throw new Error('无法创建爆炸烟团纹理');
+    gl.bindTexture(gl.TEXTURE_2D, texture);
+    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
+    gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, createSmokeAtlas());
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.bindTexture(gl.TEXTURE_2D, null);
+    return texture;
   }
 
   loadBackgroundTexture(url) {
@@ -6424,6 +6720,96 @@ class NativeWebGLRenderer {
     const v2 = (row + 1) / rowCount;
     this.drawTextureRect(x, y, width, height, this.effectTexture, u1, u2, v1, v2, alpha, tint, false, rotation, flash);
     return true;
+  }
+
+  drawSmokeExplosions(explosions = [], reduceMotion = false) {
+    if (!explosions.length) return;
+    const gl = this.gl;
+    gl.useProgram(this.smokeProgram);
+    gl.bindVertexArray(this.smokeVertexArray);
+    gl.uniform2f(this.smokeResolutionLocation, this.width, this.height);
+    gl.uniform2f(this.smokeCameraLocation, this.camera.x, this.camera.y);
+    gl.uniform1f(this.smokeZoomLocation, this.camera.zoom);
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, this.smokeTexture);
+    gl.uniform1i(this.smokeTextureLocation, 0);
+    // Birth order and particle order never change during a plume's lifetime.
+    for (const explosion of explosions) {
+      if (explosion.life <= 0) continue;
+      const age = Math.max(0, explosion.duration - explosion.life);
+      const floatCount = explosion.particles.length * 12;
+      if (this.smokePositions.length < floatCount) {
+        this.smokePositions = new Float32Array(floatCount);
+        this.smokeUvs = new Float32Array(floatCount);
+        this.smokeAppearances = new Float32Array(floatCount);
+      }
+      let offset = 0;
+      for (const particle of explosion.particles) {
+        const particleAge = age - particle.delay;
+        if (particleAge < 0 || particleAge >= particle.duration) continue;
+        const lifeProgress = particleAge / particle.duration;
+        const birthProgress = Math.min(1, particleAge / 0.025);
+        const birthOpacity = birthProgress * birthProgress * (3 - 2 * birthProgress);
+        const opacity = particle.opacity * (0.64 + 0.36 * Math.exp(-particleAge * 3.2)) * (1 - lifeProgress) * birthOpacity;
+        const travelAge = Math.max(0, particleAge - particle.hold);
+        const fastProgress = Math.min(1, travelAge / particle.fastDuration);
+        // A short outward impulse eases slightly, then drops speed abruptly at its threshold.
+        const fastDistance = particle.slowdownDistance * fastProgress * (1.25 - 0.25 * fastProgress);
+        const slowAge = Math.max(0, travelAge - particle.fastDuration);
+        const slowDistance = (1 - particle.slowdownDistance) * (1 - Math.exp(-slowAge * 0.42))
+          + particle.minimumSpeed / particle.travelDistance * slowAge;
+        const spread = reduceMotion ? 0.82 : fastDistance + slowDistance;
+        let height = 0;
+        if (!reduceMotion) {
+          if (particle.kind === 'fine') {
+            // Fine spray is thrown into a short arc and lands back on the ground.
+            const flightProgress = Math.min(1, particleAge / particle.airTime);
+            height = particle.liftHeight * 4 * flightProgress * (1 - flightProgress);
+          } else {
+            // Larger dust rolls upward quickly, then settles gently under air resistance.
+            const riseProgress = Math.min(1, particleAge / particle.riseTime);
+            const settleAge = Math.max(0, particleAge - particle.riseTime) / particle.settleTime;
+            height = particle.liftHeight * (1 - (1 - riseProgress) ** 2) * Math.exp(-settleAge * settleAge);
+          }
+        }
+        const bend = reduceMotion ? 0 : particle.curl * (1 - Math.exp(-particleAge * 3));
+        const x = explosion.x + particle.startX + particle.driftX * spread - particle.driftY / particle.travelDistance * bend;
+        const y = explosion.y + particle.startY + particle.driftY * spread + particle.driftX / particle.travelDistance * bend - height;
+        const size = reduceMotion ? 1.1 : (0.62 + 0.38 * (1 - Math.exp(-particleAge * 16))) * (1 + Math.min(spread, 1) * particle.growth);
+        const halfWidth = particle.radius * size;
+        const halfHeight = halfWidth;
+        const rotation = particle.rotation + (reduceMotion ? 0 : particle.spin * particleAge);
+        const cosine = Math.cos(rotation);
+        const sine = Math.sin(rotation);
+        const column = particle.variant % 2;
+        const row = Math.floor(particle.variant / 2);
+        const u1 = (column * SMOKE_CELL_SIZE + 0.5) / SMOKE_ATLAS_SIZE;
+        const u2 = ((column + 1) * SMOKE_CELL_SIZE - 0.5) / SMOKE_ATLAS_SIZE;
+        const v1 = (row * SMOKE_CELL_SIZE + 0.5) / SMOKE_ATLAS_SIZE;
+        const v2 = ((row + 1) * SMOKE_CELL_SIZE - 0.5) / SMOKE_ATLAS_SIZE;
+        for (let corner = 0; corner < SMOKE_QUAD_CORNERS.length; corner += 2) {
+          const localX = SMOKE_QUAD_CORNERS[corner] * halfWidth;
+          const localY = SMOKE_QUAD_CORNERS[corner + 1] * halfHeight;
+          this.smokePositions[offset] = x + localX * cosine - localY * sine;
+          this.smokePositions[offset + 1] = y + localX * sine + localY * cosine;
+          this.smokeUvs[offset] = SMOKE_QUAD_CORNERS[corner] < 0 ? u1 : u2;
+          this.smokeUvs[offset + 1] = SMOKE_QUAD_CORNERS[corner + 1] < 0 ? v1 : v2;
+          this.smokeAppearances[offset] = particle.shade;
+          this.smokeAppearances[offset + 1] = opacity;
+          offset += 2;
+        }
+      }
+      if (!offset) continue;
+      // Per-puff continuous opacity in one draw, with no alpha buckets or dynamic sorting.
+      gl.bindBuffer(gl.ARRAY_BUFFER, this.smokePositionBuffer);
+      gl.bufferData(gl.ARRAY_BUFFER, this.smokePositions.subarray(0, offset), gl.DYNAMIC_DRAW);
+      gl.bindBuffer(gl.ARRAY_BUFFER, this.smokeUvBuffer);
+      gl.bufferData(gl.ARRAY_BUFFER, this.smokeUvs.subarray(0, offset), gl.DYNAMIC_DRAW);
+      gl.bindBuffer(gl.ARRAY_BUFFER, this.smokeAppearanceBuffer);
+      gl.bufferData(gl.ARRAY_BUFFER, this.smokeAppearances.subarray(0, offset), gl.DYNAMIC_DRAW);
+      gl.drawArrays(gl.TRIANGLES, 0, offset / 2);
+    }
+    gl.bindVertexArray(null);
   }
 
   drawTiledTexture(texture, { x = 0, y = 0, width, height, tileWidth = 512, tileHeight = tileWidth, alpha = 1, tint = '#ffffff' } = {}) {
@@ -7512,89 +7898,6 @@ function isImageOnlyEffect(effect) {
       && (effect?.type === 'skill' || effect?.type === 'burst' || effect?.effectRole === 'area');
 }
 
-const DUST_PARTICLE_PALETTES = Object.freeze({
-  player: Object.freeze({ shadow: '#93836d', base: '#d6c7ae', light: '#f2e5cf' }),
-  enemy: Object.freeze({ shadow: '#795843', base: '#c5a181', light: '#e9d0b0' }),
-  impact: Object.freeze({ shadow: '#765b40', base: '#bda582', light: '#ead8b8' }),
-  smoke: Object.freeze({ shadow: '#25292e', base: '#4c5258', light: '#85898d' }),
-});
-
-function dustNoise(seed, sample) {
-  const value = Math.sin(seed * 127.1 + sample * 311.7) * 43758.5453123;
-  return value - Math.floor(value);
-}
-
-function getDustBatch(batches, tone, opacity) {
-  const alphaBucket = clamp(Math.round(clamp(opacity, 0, 1) * 5), 1, 5);
-  const key = `${tone}:${alphaBucket}`;
-  if (!batches.has(key)) batches.set(key, { color: tone, alpha: alphaBucket / 5, vertices: [] });
-  return batches.get(key);
-}
-
-function appendDustBlob(batches, x, y, radiusX, radiusY, tone, opacity, seed, rotation = 0) {
-  if (opacity < 0.04 || radiusX < 0.5 || radiusY < 0.5) return;
-  const batch = getDustBatch(batches, tone, opacity);
-  const segments = 9;
-  for (let index = 0; index < segments; index += 1) {
-    const firstAngle = rotation + index * Math.PI * 2 / segments;
-    const secondAngle = rotation + (index + 1) * Math.PI * 2 / segments;
-    const firstScale = 0.82 + dustNoise(seed, index * 2) * 0.34;
-    const secondScale = 0.82 + dustNoise(seed, index * 2 + 1) * 0.34;
-    batch.vertices.push(
-      x, y,
-      x + Math.cos(firstAngle) * radiusX * firstScale,
-      y + Math.sin(firstAngle) * radiusY * firstScale,
-      x + Math.cos(secondAngle) * radiusX * secondScale,
-      y + Math.sin(secondAngle) * radiusY * secondScale,
-    );
-  }
-}
-
-function appendDustCloud(batches, x, y, radius, opacity, seed, paletteName = 'impact') {
-  if (!(radius > 0) || opacity < 0.04) return;
-  const palette = DUST_PARTICLE_PALETTES[paletteName] ?? DUST_PARTICLE_PALETTES.impact;
-  const rotation = dustNoise(seed, 91) * Math.PI * 2;
-  const offset = (localX, localY) => ({
-    x: x + (localX * Math.cos(rotation) - localY * Math.sin(rotation)) * radius,
-    y: y + (localX * Math.sin(rotation) + localY * Math.cos(rotation)) * radius,
-  });
-  const shadowLobe = offset(0.08, 0.12);
-  const centerLobe = offset(0, 0);
-  const leftLobe = offset(-0.32, 0.02);
-  const upperLobe = offset(-0.12, -0.25);
-  const rightLobe = offset(0.36, -0.08);
-  const topLobe = offset(0.14, -0.38);
-  appendDustBlob(batches, shadowLobe.x, shadowLobe.y, radius * 1.02, radius * 0.7, palette.shadow, opacity * 0.7, seed + 1, rotation);
-  appendDustBlob(batches, centerLobe.x, centerLobe.y, radius * 0.9, radius * 0.62, palette.base, opacity * 0.88, seed + 2, rotation + 0.18);
-  appendDustBlob(batches, leftLobe.x, leftLobe.y, radius * 0.58, radius * 0.5, palette.base, opacity * 0.82, seed + 3, rotation - 0.28);
-  appendDustBlob(batches, upperLobe.x, upperLobe.y, radius * 0.44, radius * 0.36, palette.light, opacity * 0.68, seed + 4, rotation + 0.32);
-  appendDustBlob(batches, rightLobe.x, rightLobe.y, radius * 0.5, radius * 0.44, palette.shadow, opacity * 0.74, seed + 5, rotation - 0.42);
-  appendDustBlob(batches, topLobe.x, topLobe.y, radius * 0.4, radius * 0.34, palette.base, opacity * 0.76, seed + 6, rotation + 0.52);
-}
-
-function appendDustFleck(batches, x, y, size, angle, opacity, tone, seed) {
-  if (opacity < 0.04 || size < 0.7) return;
-  const batch = getDustBatch(batches, tone, opacity);
-  const sideways = size * (0.3 + dustNoise(seed, 3) * 0.3);
-  const forward = size * (0.75 + dustNoise(seed, 5) * 0.65);
-  const cos = Math.cos(angle);
-  const sin = Math.sin(angle);
-  const tipX = x + cos * forward;
-  const tipY = y + sin * forward;
-  const baseX = x - cos * forward * 0.44;
-  const baseY = y - sin * forward * 0.44;
-  const sideX = -sin * sideways;
-  const sideY = cos * sideways;
-  batch.vertices.push(
-    x, y,
-    tipX, tipY,
-    baseX + sideX, baseY + sideY,
-    x, y,
-    baseX - sideX, baseY - sideY,
-    tipX, tipY,
-  );
-}
-
 function classifyCombatEffectAudio(effect) {
   if (!effect) return null;
   if (effect.type === 'death' || effect.type === 'crush') return 'death';
@@ -8251,7 +8554,6 @@ class MemeWarApp {
     this.audioEffectCursors = new WeakMap();
     this.screenShakeEffectCursors = new WeakMap();
     this.screenShakePulses = [];
-    this.dustRenderBatches = new Map();
     this.phase = 'prep';
     this.levelIndex = 0;
     this.level = this.levels[0];
@@ -8830,6 +9132,7 @@ class MemeWarApp {
       }
       return;
     }
+    this.menuSimulation.updateVisualEffects(deltaSeconds * timeScale);
     this.advanceDeathPresentation(deltaSeconds * timeScale, this.menuSimulation);
     this.menuRoundPause -= deltaSeconds;
     if (this.menuRoundPause <= 0) this.startMenuBattleRound();
@@ -9054,13 +9357,15 @@ class MemeWarApp {
       const card = makeElement('button', 'unit-card');
       card.type = 'button';
       card.dataset.unitId = unit.id;
-      const skillSummary = (unit.skills ?? []).map((skill) => `${SKILL_TYPE_ICONS[skill.type] ?? '·'} ${skill.name}`).join(' · ') || '基础攻击';
-      const effectSummary = unit.effectSummary || ((unit.skills ?? []).map((skill) => skill.name).join('、') || '基础攻击');
-      card.setAttribute('aria-label', `${unit.name}，${unit.price} 金，${unit.roleLabel}，效果：${effectSummary}，技能：${skillSummary}，点击选中后部署，也可拖动`);
+      const roleLabel = unit.roleLabel.split('·')[0].trim();
+      card.setAttribute('aria-label', `${unit.name}，${unit.price} 金，定位：${roleLabel}，生命 ${unit.hp}，攻击 ${unit.atk}，射程 ${unit.range}`);
 
-      const top = makeElement('div', 'card-top');
+      const turn = makeElement('div', 'unit-card-turn');
+      const front = makeElement('div', 'unit-card-face unit-card-front');
+      const portrait = makeElement('div', `unit-portrait${unit.id === 'dayun' ? ' unit-portrait-vehicle' : ''}`);
       const glyph = makeElement('span', 'unit-glyph', unit.name.slice(0, 1));
-      glyph.style.background = unit.color;
+      glyph.dataset.fallback = unit.name.slice(0, 1);
+      glyph.setAttribute('aria-hidden', 'true');
       const idleSpriteIndex = Number.isInteger(unit.animation?.idleSpriteIndex) ? unit.animation.idleSpriteIndex : unit.spriteIndex;
       if (Number.isInteger(idleSpriteIndex)) {
         const spriteColumn = ((idleSpriteIndex % SPRITE_ATLAS_COLUMNS) + SPRITE_ATLAS_COLUMNS) % SPRITE_ATLAS_COLUMNS;
@@ -9072,17 +9377,25 @@ class MemeWarApp {
         glyph.style.backgroundPosition = `${spriteColumn * (100 / Math.max(1, SPRITE_ATLAS_COLUMNS - 1))}% ${spriteRow * (100 / Math.max(1, SPRITE_ATLAS_ROWS - 1))}%`;
       }
       const price = makeElement('span', 'unit-price', `${unit.price} 金`);
-      top.append(glyph, price);
-
       const name = makeElement('div', 'unit-name', unit.name);
-      const role = makeElement('div', 'unit-role', unit.roleLabel);
-      const skillLine = makeElement('div', 'unit-skill-line', `效果：${effectSummary}`);
-      skillLine.title = `效果：${effectSummary} · 技能：${skillSummary}`;
+      portrait.append(glyph);
+      front.append(portrait, name, price);
+
+      const back = makeElement('div', 'unit-card-face unit-card-back');
+      back.setAttribute('aria-hidden', 'true');
+      const role = makeElement('div', 'unit-role', `定位：${roleLabel}`);
       const stats = makeElement('div', 'unit-stats');
-      const hp = makeElement('span', '', `❤ ${unit.hp}`);
-      const atk = makeElement('b', '', unit.role === 'deployable' ? '路障' : `⚔ ${unit.atk}`);
-      stats.append(hp, atk);
-      card.append(top, name, role, skillLine, stats);
+      for (const [label, value] of [
+        ['生命', unit.hp], ['攻击', unit.role === 'deployable' ? '路障' : unit.atk],
+        ['射程', unit.range],
+      ]) {
+        const stat = makeElement('span', 'unit-stat');
+        stat.append(makeElement('small', '', label), makeElement('b', '', String(value)));
+        stats.append(stat);
+      }
+      back.append(role, stats);
+      turn.append(front, back);
+      card.append(turn);
       card.addEventListener('pointerdown', (event) => this.onUnitCardPointerDown(event, unit.id));
       card.addEventListener('click', () => {
         if (this.suppressCardClick) {
@@ -9101,6 +9414,7 @@ class MemeWarApp {
   applyUnitGlyphTextures() {
     for (const glyph of this.elements.unitList.querySelectorAll('.unit-glyph[data-sprite-index]')) {
       glyph.style.backgroundImage = this.unitTextureUrl ? `url("${this.unitTextureUrl}")` : 'none';
+      glyph.textContent = this.unitTextureUrl ? '' : glyph.dataset.fallback;
     }
     for (const sprite of this.elements.startMenuOverlay?.querySelectorAll('.menu-fighter-sprite') ?? []) {
       sprite.style.backgroundImage = this.unitTextureUrl ? `url("${this.unitTextureUrl}")` : 'none';
@@ -9367,7 +9681,7 @@ class MemeWarApp {
     if (this.phase !== 'prep') return;
     const unit = this.unitsById[unitId];
     if (!unit) return;
-    if (this.budgetRemaining < unit.price) {
+    if (this.selectedUnitId !== unitId && this.budgetRemaining < unit.price) {
       this.showToast('预算不够了，换一张更便宜的卡。');
       this.audio.blip(150, 0.06, 'square', 0.018);
       return;
@@ -10202,9 +10516,8 @@ class MemeWarApp {
       if (!this.isPointInside(this.canvas, event)) return;
       const world = this.pointerToWorld(event);
       const deployment = this.draggedDeployment.deployment;
-      const data = this.unitsById[deployment.unitId];
-      deployment.x = clamp(world.x, WORLD.minX + data.radius, WORLD.maxX - data.radius);
-      deployment.y = clamp(world.y, WORLD.minY + data.radius, WORLD.maxY - data.radius);
+      deployment.x = world.x;
+      deployment.y = world.y;
       this.hoverWorld = { x: deployment.x, y: deployment.y };
       return;
     }
@@ -10438,8 +10751,7 @@ class MemeWarApp {
   }
 
   isPointInsidePlayerDeploymentZone(x, y, unit) {
-    if (!unit || x < WORLD.minX + unit.radius || x > WORLD.maxX - unit.radius
-      || y < WORLD.minY + unit.radius || y > WORLD.maxY - unit.radius) return false;
+    if (!unit || !Number.isFinite(x) || !Number.isFinite(y)) return false;
     return DEPLOYMENT_ZONES.pointInDeploymentZones({ x, y }, this.getPlayerDeploymentZones());
   }
 
@@ -10648,59 +10960,6 @@ class MemeWarApp {
     return { x, y };
   }
 
-  flushDustParticleBatches() {
-    if (!this.renderer || !this.dustRenderBatches?.size) return;
-    for (const batch of this.dustRenderBatches.values()) {
-      this.renderer.drawVertices(batch.vertices, batch.color, this.renderer.gl.TRIANGLES, batch.alpha);
-    }
-    this.dustRenderBatches.clear();
-  }
-
-  queueExplosionDust(effect, elapsedSeconds) {
-    if (!this.dustRenderBatches) this.dustRenderBatches = new Map();
-    const damage = Math.max(0, Number(effect.damage) || 0);
-    const lowQuality = this.renderer?.qualityTier === 'low';
-    const particleCount = lowQuality
-      ? 8 + Math.min(12, Math.ceil(damage / 18))
-      : 12 + Math.min(20, Math.ceil(damage / 14));
-    const gameplayRadius = Number(effect.gameplayRadius) || Number(effect.radius) || 75;
-    const blastRadius = clamp(gameplayRadius, 12, 360);
-    const effectSeed = Math.max(1, Number(effect.id) || 1) * 131;
-    const cloudDuration = Math.max(2.8, Number(effect.particleDuration) || Number(effect.duration) || 3.8);
-    for (let index = 0; index < particleCount; index += 1) {
-      const seed = effectSeed + index * 43;
-      const delay = dustNoise(seed, 1) * 0.08;
-      const particleDuration = cloudDuration * (0.9 + dustNoise(seed, 2) * 0.1);
-      const age = elapsedSeconds - delay;
-      if (age < 0 || age > particleDuration) continue;
-      const progress = clamp(age / particleDuration, 0, 1);
-      const angle = dustNoise(seed, 3) * Math.PI * 2 + index * 2.39996;
-      // Start as one packed smoke mass, then ease outward so the plume's drift slows over time.
-      const spreadEase = 1 - Math.exp(-age * 0.68);
-      const initialCluster = blastRadius * (0.025 + dustNoise(seed, 4) * 0.18);
-      const slowSpread = blastRadius * 0.66 * spreadEase * (0.72 + dustNoise(seed, 5) * 0.4);
-      const reach = initialCluster + slowSpread;
-      const x = effect.x + Math.cos(angle) * reach;
-      const y = effect.y + Math.sin(angle) * reach - blastRadius * 0.08 * spreadEase;
-      const size = clamp(blastRadius * (0.13 + dustNoise(seed, 6) * 0.065), 16, 58) * (1 + progress * 0.2);
-      const fadeStart = particleDuration * 0.66;
-      const opacity = 0.94 * (1 - clamp((age - fadeStart) / Math.max(0.05, particleDuration - fadeStart), 0, 1));
-      appendDustCloud(this.dustRenderBatches, x, y, size, opacity, seed, 'smoke');
-      if (index % 3 === 0) {
-        appendDustFleck(
-          this.dustRenderBatches,
-          x + Math.cos(angle) * size * 0.68,
-          y + Math.sin(angle) * size * 0.68,
-          size * 0.34,
-          angle + 0.7,
-          opacity * 0.65,
-          index % 2 === 0 ? DUST_PARTICLE_PALETTES.smoke.light : DUST_PARTICLE_PALETTES.smoke.shadow,
-          seed + 23,
-        );
-      }
-    }
-  }
-
   consumeCombatAudioEffects(simulation) {
     if (!simulation || typeof simulation !== 'object') return null;
     if (!this.audioEffectCursors) this.audioEffectCursors = new WeakMap();
@@ -10794,14 +11053,13 @@ class MemeWarApp {
   updateUnitCards() {
     for (const card of this.elements.unitList.children) {
       const unit = this.unitsById[card.dataset.unitId];
-      card.classList.toggle('selected', this.phase === 'prep' && this.selectedUnitId === unit.id);
+      const selected = this.phase === 'prep' && this.selectedUnitId === unit.id;
+      card.classList.toggle('selected', selected);
       card.classList.toggle('disabled', this.phase !== 'prep' || this.budgetRemaining < unit.price);
-      const mark = card.querySelector('.selected-mark');
-      if (this.phase === 'prep' && this.selectedUnitId === unit.id) {
-        if (!mark) card.append(makeElement('span', 'selected-mark', '●'));
-      } else if (mark) {
-        mark.remove();
-      }
+      card.setAttribute('aria-pressed', String(selected));
+      card.setAttribute('aria-disabled', String(this.phase !== 'prep' || (!selected && this.budgetRemaining < unit.price)));
+      card.querySelector('.unit-card-front').setAttribute('aria-hidden', String(selected));
+      card.querySelector('.unit-card-back').setAttribute('aria-hidden', String(!selected));
     }
   }
 
@@ -10817,7 +11075,9 @@ class MemeWarApp {
       this.finishBattle();
       this.syncUi();
     } else if (this.phase === 'result' && this.simulation) {
-      this.advanceDeathPresentation(elapsed * (this.slowInput ? 0.2 : this.speed));
+      const presentationDelta = elapsed * (this.slowInput ? 0.2 : this.speed);
+      this.simulation.updateVisualEffects(presentationDelta);
+      this.advanceDeathPresentation(presentationDelta);
     }
     if (this.isMenuBackgroundVisible()) this.advanceMenuBattleCycle(elapsed);
     this.render();
@@ -10868,18 +11128,13 @@ class MemeWarApp {
       renderer.drawRect(WORLD.width / 2, WORLD.height / 2, WORLD.width, WORLD.height, '#eee6d8');
     }
     this.drawTerrainBase();
-    renderer.drawLine(WORLD.minX, WORLD.minY, WORLD.maxX, WORLD.minY, 3, '#a5dbd0', 0.2);
-    renderer.drawLine(WORLD.maxX, WORLD.minY, WORLD.maxX, WORLD.maxY, 3, '#a5dbd0', 0.2);
-    renderer.drawLine(WORLD.maxX, WORLD.maxY, WORLD.minX, WORLD.maxY, 3, '#a5dbd0', 0.2);
-    renderer.drawLine(WORLD.minX, WORLD.maxY, WORLD.minX, WORLD.minY, 3, '#a5dbd0', 0.2);
     if (this.phase === 'prep' && !this.isMenuBackgroundVisible()) {
       const activeUnit = this.selectedUnitId ? this.unitsById[this.selectedUnitId] : null;
       this.drawPlayerDeploymentZones();
       this.drawRangePreview();
       if (this.hoverWorld && activeUnit) {
-        const previewX = clamp(this.hoverWorld.x, WORLD.minX + activeUnit.radius, WORLD.maxX - activeUnit.radius);
-        const previewY = clamp(this.hoverWorld.y, WORLD.minY + activeUnit.radius, WORLD.maxY - activeUnit.radius);
-        this.drawPlacementGhost(activeUnit, previewX, previewY, this.isValidPlacement(this.hoverWorld.x, this.hoverWorld.y, activeUnit));
+        this.drawPlacementGhost(activeUnit, this.hoverWorld.x, this.hoverWorld.y,
+          this.isValidPlacement(this.hoverWorld.x, this.hoverWorld.y, activeUnit));
       }
     }
   }
@@ -10946,7 +11201,6 @@ class MemeWarApp {
 
   drawUnitsAndEffects() {
     const simulation = this.renderSimulation;
-    this.dustRenderBatches = new Map();
     // Painter's order follows battlefield depth: larger world Y is closer to the camera.
     const units = this.battleUnits.map((unit) => ({ unit, position: this.getUnitRenderPosition(unit) })).sort((first, second) => {
       const depth = first.position.y - second.position.y;
@@ -11064,7 +11318,7 @@ class MemeWarApp {
     }
     const effectLimit = this.renderer.qualityTier === 'low' ? 28 : 52;
     for (const effect of simulation.effects.slice(-effectLimit)) this.drawEffect(effect);
-    this.flushDustParticleBatches();
+    this.renderer.drawSmokeExplosions(simulation.explosions, this.isReducedMotionEnabled());
   }
 
   drawEffect(effect) {
@@ -11606,10 +11860,6 @@ class MemeWarApp {
         line(first.x, first.y, second.x, second.y, Math.max(1.5, radiusY * 0.11), '#6d3f39', alpha * 0.72);
       }
     };
-
-    if (particleExplosion) {
-      if (!effect.suppressAreaDust) this.queueExplosionDust(effect, effectAge);
-    }
 
     if (effect.type === 'attack') {
       drawStyleAttack(effect.mode === 'ranged');
