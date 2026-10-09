@@ -8,7 +8,7 @@
     <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
     <!-- MEME_WAR_ASSET_PRELOAD_START -->
     <script>
-window.MEME_WAR_ASSET_URLS = {"unitsLow":"./assets/units-handdrawn-atlas-low.webp?v=8e63768933be81fd","effectsLow":"./assets/effects-paper-atlas-low.webp?v=3722a028118ffee6","mapTile":"./assets/artwork-v10/map-floor-tile-1024.webp?v=95f2f233ae90d5c3","unitsLowFallback":"./assets/units-handdrawn-atlas-low.png?v=20bbb982b237c7c6","effectsLowFallback":"./assets/effects-paper-atlas-low.png?v=1fab044b7e3cdcf1","mapTileFallback":"./assets/artwork-v10/map-floor-tile-1024.png?v=c19d1d1b1b216c1b","fileTextures":"./assets/runtime-file-textures.js?v=ab51ec382d4e76d0"};
+window.MEME_WAR_ASSET_URLS = {"unitsLow":"./assets/units-handdrawn-atlas-low.webp?v=8e63768933be81fd","effectsLow":"./assets/effects-paper-atlas-low.webp?v=3722a028118ffee6","mapTile":"./assets/artwork-v10/map-floor-tile-1024.webp?v=95f2f233ae90d5c3","unitsLowFallback":"./assets/units-handdrawn-atlas-low.png?v=20bbb982b237c7c6","effectsLowFallback":"./assets/effects-paper-atlas-low.png?v=1fab044b7e3cdcf1","mapTileFallback":"./assets/artwork-v10/map-floor-tile-1024.png?v=c19d1d1b1b216c1b","fileTextures":"./assets/runtime-file-textures.js?v=ab51ec382d4e76d0","unitsPreview":"./assets/units-handdrawn-atlas-low-preview-16.webp?v=36b2d0c537f0e4d5","effectsPreview":"./assets/effects-paper-atlas-low-preview-16.webp?v=901d1041793a2aad","mapPreview":"./assets/artwork-v10/map-floor-tile-1024-preview-16.webp?v=6f1195fecbbc8972","filePreviewTextures":"./assets/runtime-file-textures-preview.js?v=3f6694408a5753ca"};
 // 图片统一由运行时在音效预载完成后请求，头部不得提前抢跑。
 </script>
     <!-- MEME_WAR_ASSET_PRELOAD_END -->
@@ -6984,14 +6984,28 @@ const TEXTURE_STAGE = Object.freeze({
   effectFallback: STATIC_ASSET_URLS.effectsLowFallback || './assets/effects-paper-atlas-low.png',
   backgroundFallback: STATIC_ASSET_URLS.mapTileFallback || './assets/artwork-v10/map-floor-tile-1024.png',
 });
-let fileTextureBundlePromise = null;
+const TEXTURE_PREVIEW_STAGE = Object.freeze({
+  preview: true,
+  tier: 'low',
+  unit: STATIC_ASSET_URLS.unitsPreview || null,
+  effect: STATIC_ASSET_URLS.effectsPreview || null,
+  background: STATIC_ASSET_URLS.mapPreview || null,
+  unitFallback: null,
+  effectFallback: null,
+  backgroundFallback: null,
+});
+const fileTextureBundlePromises = new Map();
 
 async function resolveTextureStage(stage) {
   if (window.location?.protocol !== 'file:') return stage;
-  if (!fileTextureBundlePromise) {
-    fileTextureBundlePromise = new Promise((resolve, reject) => {
+  const preview = Boolean(stage.preview);
+  const bundleKey = preview ? 'MEME_WAR_FILE_PREVIEW_TEXTURES' : 'MEME_WAR_FILE_TEXTURES';
+  const bundleSlot = preview ? 'preview' : 'full';
+  const bundlePath = preview ? 'assets/runtime-file-textures-preview.js' : 'assets/runtime-file-textures.js';
+  if (!fileTextureBundlePromises.has(bundleSlot)) {
+    fileTextureBundlePromises.set(bundleSlot, new Promise((resolve, reject) => {
       const acceptTextures = () => {
-        const textures = window.MEME_WAR_FILE_TEXTURES;
+        const textures = window[bundleKey];
         if (!textures || ['unitsLow', 'effectsLow', 'mapTile'].some((key) => (
           typeof textures[key] !== 'string' || !textures[key].startsWith('data:image/')
         ))) {
@@ -7000,20 +7014,20 @@ async function resolveTextureStage(stage) {
         }
         resolve(textures);
       };
-      if (window.MEME_WAR_FILE_TEXTURES) {
+      if (window[bundleKey]) {
         acceptTextures();
         return;
       }
       // file: 图片可在页面中显示，但不一定允许上传到 WebGL；经典脚本提供安全的 data URI。
       const script = document.createElement('script');
       script.async = true;
-      script.src = STATIC_ASSET_URLS.fileTextures || './assets/runtime-file-textures.js';
+      script.src = (preview ? STATIC_ASSET_URLS.filePreviewTextures : STATIC_ASSET_URLS.fileTextures) || `./${bundlePath}`;
       script.onload = acceptTextures;
-      script.onerror = () => reject(new Error('无法读取本地贴图包，请检查 assets/runtime-file-textures.js'));
+      script.onerror = () => reject(new Error(`无法读取本地贴图包，请检查 ${bundlePath}`));
       document.head.appendChild(script);
-    });
+    }));
   }
-  const textures = await fileTextureBundlePromise;
+  const textures = await fileTextureBundlePromises.get(bundleSlot);
   return { ...stage, unit: textures.unitsLow, effect: textures.effectsLow, background: textures.mapTile,
     unitFallback: null, effectFallback: null, backgroundFallback: null };
 }
@@ -8440,7 +8454,7 @@ class MemeWarApp {
     this.showStartMenu();
     window.requestAnimationFrame((time) => {
       this.frame(time);
-      // 先绘制菜单，再按音效、角色、特效、地图的顺序装填资源。
+      // 菜单先显示，音效后先装填 1/16 预览，再在后台替换清晰素材。
       window.requestAnimationFrame(() => this.scheduleProgressiveAssets());
     });
   }
@@ -8455,7 +8469,6 @@ class MemeWarApp {
     };
     const loadTextureStage = async (stage) => {
       if (!this.renderer) return;
-      await this.preloadUnitAudio();
       stage = await resolveTextureStage(stage);
       const unitResults = await Promise.allSettled([loadWithFallback((url) => this.renderer.loadTexture(url), stage.unit, stage.unitFallback).then((url) => {
         this.unitTextureUrl = url;
@@ -8486,14 +8499,28 @@ class MemeWarApp {
       this.render();
       const failures = textureResults.filter((result) => result.status === 'rejected');
       if (failures.length) throw new Error(failures.map((result) => result.reason?.message || String(result.reason)).join('；'));
+      this.elements.app.dataset.textureStage = stage.preview ? 'preview' : 'full';
       return textureResults;
     };
 
-    // 网页优先加载轻量 WebP，失败回退 PNG；本地直开仍使用原图数据。
-    return loadTextureStage(TEXTURE_STAGE).catch((error) => {
+    const reportTextureFailure = (error) => {
       console.error('图片资源加载失败', error);
-      this.showToast('图片加载失败，请确认入口旁的 assets 文件夹完整后重新打开游戏。');
-    });
+      this.showToast(this.renderer?.spriteReady || this.renderer?.backgroundReady
+        ? '部分高清图片加载失败，继续使用已加载画质。'
+        : '图片加载失败，请确认入口旁的 assets 文件夹完整后重新打开游戏。');
+    };
+    return (async () => {
+      await this.preloadUnitAudio();
+      if (TEXTURE_PREVIEW_STAGE.unit && TEXTURE_PREVIEW_STAGE.effect && TEXTURE_PREVIEW_STAGE.background) {
+        await loadTextureStage(TEXTURE_PREVIEW_STAGE).catch((error) => {
+          console.warn('预览图片加载失败，继续加载高清图片', error);
+        });
+        // 先让整套预览出现在一帧中，再开始较大图片的请求。
+        await new Promise((resolve) => window.requestAnimationFrame(resolve));
+      }
+      // 新纹理上传成功后才替换旧纹理；高清请求失败时保留已经显示的预览。
+      return loadTextureStage(TEXTURE_STAGE).catch(reportTextureFailure);
+    })().catch(reportTextureFailure);
   }
 
   preloadUnitAudio() {
